@@ -52,7 +52,7 @@ adaQN:
 	===========================
 ```
 
-Comparison to first-order methods in MediaMill dataset (Logistic Regression with multinomial loss):
+Comparison to first-order methods in BibTeX dataset (Logistic Regression with multinomial loss):
 
 ![image](plot/bibtex.png "bibtex")
 
@@ -194,7 +194,7 @@ For a longer example see the [IPython example notebook](https://www.github.com/d
 
 ## Documentation
 
-Python documentation coming soon to readthedocs - in the meantime, all the functions are internally documented through docstrings.
+Python documentation is available at [ReadTheDocs](https://stochqn.readthedocs.io/en/latest/), but unfortunately, not everything there is documented - missing parts such as class constructors are still available as docstring (e.g. you can try `help(stochqn.adaQN)`).
 
 C documentation is available in the header file [include/stochqn.h](https://www.github.com/david-cortes/stochQN/blob/master/include/stochqn.h).
 
@@ -208,6 +208,9 @@ Use `dill` instead of `pickle` to serialize objects from this package. `dill` ha
 
 ## References
 [1] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7) Springer Science, 35(67-68), p.7.
+
 [2] Keskar, N.S. and Berahas, A.S., 2016, September. "adaQN: An Adaptive Quasi-Newton Algorithm for Training RNNs." In Joint European Conference on Machine Learning and Knowledge Discovery in Databases (pp. 1-16). Springer, Cham.
+
 [3] Byrd, R.H., Hansen, S.L., Nocedal, J. and Singer, Y., 2016. "A stochastic quasi-Newton method for large-scale optimization." SIAM Journal on Optimization, 26(2), pp.1008-1031.
+
 [4] Schraudolph, N.N., Yu, J. and Günter, S., 2007, March. "A stochastic quasi-Newton method for online convex optimization." In Artificial Intelligence and Statistics (pp. 436-443).

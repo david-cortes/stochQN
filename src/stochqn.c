@@ -75,6 +75,9 @@ extern "C" {
 /* BLAS functions */
 #ifdef _FOR_PYTON
 	#include "findblas.h" /* https://www.github.com/david-cortes/findblas */
+	#ifdef _FOR_RTD
+		#include "rtd_mock.h"
+	#endif
 #elif defined(_FOR_R)
 	#include "blas_R.h"
 	#include <R_ext/Print.h>

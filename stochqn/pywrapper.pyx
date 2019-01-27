@@ -2,6 +2,7 @@ import numpy as np
 cimport numpy as np
 import ctypes, multiprocessing
 from libc.string cimport memcpy
+cimport cython
 
 cdef extern from "../include/stochqn.h":
 	ctypedef struct bfgs_mem:
@@ -454,6 +455,7 @@ cdef class _StochQN_free:
 		"""
 		self.gradient = gradient.astype('float64').reshape(-1)
 
+@cython.embedsignature(True)
 cdef class oLBFGS_free(_StochQN_free):
 	cdef public _cy_oLBFGS _oLBFGS
 	cdef public double hess_init
@@ -565,6 +567,7 @@ cdef class oLBFGS_free(_StochQN_free):
 		}
 		return out
 
+@cython.embedsignature(True)
 cdef class SQN_free(_StochQN_free):
 	cdef double *req_vec_ptr
 	cdef double[:] hess_vec
@@ -714,6 +717,7 @@ cdef class SQN_free(_StochQN_free):
 		else:
 			return np.array(self.hess_vec)
 
+@cython.embedsignature(True)
 cdef class adaQN_free(_StochQN_free):
 	cdef public double f
 	cdef public _cy_adaQN _adaQN

@@ -2,12 +2,13 @@ try:
 	from setuptools import setup
 except:
 	from distutils.core import setup
-import numpy as np
+import numpy as np, os
 from distutils.extension import Extension
 from findblas.distutils import build_ext_with_blas
 ## https://stackoverflow.com/questions/724664/python-distutils-how-to-get-a-compiler-that-is-going-to-be-used
 class build_ext_subclass( build_ext_with_blas ):
 	def build_extensions(self):
+		from_rtd = os.environ.get('READTHEDOCS') == 'True'
 		compiler = self.compiler.compiler_type
 		if compiler == 'msvc': # visual studio
 			for e in self.extensions:
@@ -16,12 +17,16 @@ class build_ext_subclass( build_ext_with_blas ):
 			for e in self.extensions:
 				e.extra_compile_args += ['-O2', '-fopenmp', '-march=native', '-std=c99']
 				e.extra_link_args += ['-fopenmp']
+		for e in self.extensions:
+			e.cython_directives = {"embedsignature": True}
+			if from_rtd:
+				e.define_macros += [("_FOR_RTD", None)]
 		build_ext_with_blas.build_extensions(self)
 
 setup(
 	name  = "stochqn",
 	packages = ["stochqn"],
-	version = '0.1.0',
+	version = '0.1.1',
 	description = 'Stochastich limited-memory quasi-Newton optimizers',
 	author = 'David Cortes',
 	author_email = 'david.cortes.rivera@gmail.com',
