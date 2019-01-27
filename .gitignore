@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+dist/
+	*.*
+
+stochqn.egg-info/
+	*.*
+
+stochqn/
+	pywrapper.c
+	*.so
+	*.o
+	*.dll
+	*.lib
+	*.dynlib
+	*.exe
+	*.a
+
+build/
+	*.*
+
+example/
+	a.out
+	a.exe
+
+*.so
+*.o
+*.out
+*.a
+*.dll
+*.lib
+*.dynlib
+*.exe
+*.a
+
+test.py
+pywrapper.c
+
+MANIFEST

@@ -1,0 +1,3 @@
+include include/stochqn.h
+include src/stochqn.c
+global-include *.pyx

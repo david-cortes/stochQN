@@ -1,0 +1,69 @@
+#cmakedefine HAS_MKL
+#cmakedefine HAS_OPENBLAS
+#cmakedefine HAS_ATLAS
+#cmakedefine HAS_CBLAS
+#cmakedefine BLAS_UNDERSCORES
+#cmakedefine BLAS_NO_UNDERSCORES 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef CBLAS_ORDER
+	typedef enum CBLAS_ORDER     {CblasRowMajor=101, CblasColMajor=102} CBLAS_ORDER;
+#endif
+#ifndef CBLAS_TRANSPOSE
+	typedef enum CBLAS_TRANSPOSE {CblasNoTrans=111, CblasTrans=112, CblasConjTrans=113, CblasConjNoTrans=114} CBLAS_TRANSPOSE;
+#endif
+
+#if defined(HAS_MKL) || defined(HAS_OPENBLAS) || defined(HAS_ATLAS) || defined(HAS_CBLAS)
+
+	double cblas_ddot(int n, double *x, int incx, double *y, int incy);
+	void cblas_daxpy(int n, double a, double *x, int incx, double *y, int incy);
+	void cblas_dscal(int n, double alpha, double *x, int incx);
+	double cblas_dnrm2(int n, double *x, int incx);
+	void cblas_dgemv(const enum CBLAS_ORDER order,  const enum CBLAS_TRANSPOSE trans,  const int m, const int n,
+		const double alpha, const double  *a, const int lda,  const double  *x, const int incx,  const double beta,  double  *y, const int incy);
+
+	#ifdef HAS_MKL
+		int mkl_set_num_threads_local(int nthreads);
+	#endif
+	#ifdef HAS_OPENBLAS
+		void openblas_set_num_threads(int nthreads);
+	#endif
+#else
+	#if defined(BLAS_UNDERSCORES)
+		#define ddot ddot_
+		#define daxpy daxpy_
+		#define dscal dscal_
+		#define dnrm2 dnrm2_
+		#define dgemv dgemv_
+	#endif
+
+	double cblas_ddot(int n, double *x, int incx, double *y, int incy) {return ddot(&n, x, &incx, y, &incy);}
+	void cblas_daxpy(int n, double a, double *x, int incx, double *y, int incy) {daxpy(&n, &a, x, &incx, y, &incy);}
+	void cblas_dscal(int n, double alpha, double *x, int incx) {dscal(&n, &alpha, x, &incx);}
+	double cblas_dnrm2(int n, double *x, int incx) {return dnrm2(&n, x, &incx);}
+	
+	/*	A word of warning:
+		This 'cblas_dgemv' made from FORTRAN-dgemv will not work for all combinations of inputs and is not designed
+		for general-purpose usage, only as a quick equivalence for the way in which it is used in this package.
+	*/
+	void cblas_dgemv(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE trans, int m, int n, double alpha, double *a, int lda,
+		double *x, int incx, double beta, double *y, int incy)
+	{
+		char T;
+		int M, N, LDA;
+		if (order == CblasRowMajor) {
+			if (trans == CblasNoTrans) { T = 'T'; M = n; N = m; LDA = n; } else { T = 'N'; M = m; N = n; LDA = m; }
+		} else {
+			M = m; N = n; LDA = lda;
+			if (trans == CblasNoTrans) { T = 'N'; } else { T = 'T'; }
+		}
+		dgemv(&T, &M, &N, &alpha, a, &LDA, x, &incx, &beta, y, &incy);
+	}
+#endif
+
+#ifdef __cplusplus
+}
+#endif
