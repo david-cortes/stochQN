@@ -1,5 +1,6 @@
 import numpy as np, tensorflow as tf
 from stochqn._optimizers import oLBFGS, adaQN
+from copy import deepcopy
 
 #### Workaround for passing data in Tensorflow
 class _Subscriptable_None:
@@ -41,26 +42,26 @@ class TensorflowStochQNOptimizer(tf.contrib.opt.ExternalOptimizerInterface):
 			raise ValueError("'optimizer' must be one of 'oLBFGS' or 'adaQN'.")
 
 		self.optimizer_name = optimizer
-		self.optimizer_kwargs = optimizer_kwargs
+		self.pass_args = optimizer_kwargs
 		self.optimizer = None
 		tf.contrib.opt.ExternalOptimizerInterface.__init__(self, loss, var_list, None, None, None)
 
 	def _minimize(self, initial_val, loss_grad_func, equality_funcs,
 		equality_grad_funcs, inequality_funcs, inequality_grad_funcs,
 		packed_bounds, step_callback, optimizer_kwargs):
-		def grad_fun(x, y, *args, **kwargs):
-			return loss_grad_func(x)[1]
-		def obj_fun(x, y, *args, **kwargs):
-			return loss_grad_func(x)[0]
+		def grad_fun(*args, **kwargs):
+			return loss_grad_func(self.optimizer.x)[1]
+		def obj_fun(*args, **kwargs):
+			return loss_grad_func(self.optimizer.x)[0]
 		if self.optimizer is None:
-			self.optimizer_kwargs["valset_frac"] = None
+			self.pass_args["valset_frac"] = None
 			if self.optimizer_name == "adaQN":
-				self.optimizer_kwargs["max_incr"] = None
+				self.pass_args["max_incr"] = None
 			if self.optimizer_name == "oLBFGS":
-				self.optimizer = oLBFGS(initial_val, grad_fun=grad_fun, obj_fun=obj_fun, **self.optimizer_kwargs)
+				self.optimizer = oLBFGS(initial_val, grad_fun=grad_fun, obj_fun=obj_fun, **self.pass_args)
 			elif self.optimizer_name == "adaQN":
-				self.optimizer = adaQN(initial_val, grad_fun=grad_fun, obj_fun=obj_fun, **self.optimizer_kwargs)
+				self.optimizer = adaQN(initial_val, grad_fun=grad_fun, obj_fun=obj_fun, **self.pass_args)
 			else:
 				raise ValueError("'optimizer' must be one of 'oLBFGS' or 'adaQN'.")
-		self.optimizer.partial_fit(initial_val, _Subscriptable_None(initial_val.shape[0]))
+		self.optimizer.partial_fit(_Subscriptable_None(initial_val.shape[0]), _Subscriptable_None(initial_val.shape[0]))
 		return self.optimizer.x

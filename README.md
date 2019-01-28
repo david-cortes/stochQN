@@ -126,7 +126,7 @@ optimizer.predict(X)
 ```
 Mode 2:
 ```python
-import numpy as np
+import numpy as np, tensorflow as tf
 from stochqn.tf import TensorflowStochQNOptimizer
 from sklearn.datasets import load_digits
 
@@ -134,16 +134,19 @@ digits = load_digits()
 X = digits["data"]
 y = (digits["target"] == 3).astype('int64') ### picked one class at random
 
+np.random.seed(1)
+w0 = np.random.normal(size=(X.shape[1], 1))
+
 ### logistic regression - note that there are better ways of doing it in tensorflow
 tf.reset_default_graph()
-weights = tf.Variable(np.random.normal(size=(X.shape[1],1)).astype('float32'), name='weights')
-input_X = tf.placeholder('float32', name='inpX')
-input_y = tf.placeholder('float32', name='inpY')
+weights = tf.Variable(w0, name='weights')
+input_X = tf.placeholder('float64', name='inpX')
+input_y = tf.placeholder('float64', name='inpY')
 predicted_y = tf.clip_by_value(1 / (1 + tf.exp(-tf.matmul(input_X, weights))), 1e-7, 1 - 1e-7)
 loss = -tf.reduce_sum(input_y * tf.log(predicted_y) + (1 - input_y) * tf.log(1 - predicted_y))
 loss += tf.reduce_sum(weights ** 2)
 
-optimizer = TensorflowStochQNOptimizer(loss, optimizer='adaQN', step_size=1e-5)
+optimizer = TensorflowStochQNOptimizer(loss, optimizer='oLBFGS', step_size=1e-1)
 model = tf.global_variables_initializer()
 sess = tf.Session()
 sess.run(model)

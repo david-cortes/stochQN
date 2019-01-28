@@ -4,11 +4,11 @@ from sklearn.linear_model.logistic import _logistic_loss_and_grad, _logistic_gra
 from sklearn.linear_model.logistic import _multinomial_loss_grad, _multinomial_grad_hess
 from scipy.sparse import isspmatrix
 
-def _grad_fun_multi(w, X, y, sample_weights=None, reg_param=None):
+def _grad_fun_multi(w, X, y, sample_weights=None, reg_param=0):
 	return _multinomial_loss_grad(w, X, y, reg_param, sample_weights)[1]
-def _obj_fun_mult(w, X, y, sample_weights=None, reg_param=None):
+def _obj_fun_mult(w, X, y, sample_weights=None, reg_param=0):
 	return _multinomial_loss_grad(w, X, y, reg_param, sample_weights)[0]
-def _hessvec_fun_mult(w, v, X, y, sample_weights=None, reg_param=None):
+def _hessvec_fun_mult(w, v, X, y, sample_weights=None, reg_param=0):
 	temp = _multinomial_grad_hess(w, X, y, reg_param, sample_weights)[1]
 	return temp(v)
 def _pred_fun_mult(w, X, nclasses):
@@ -19,12 +19,12 @@ def _pred_fun_mult(w, X, nclasses):
 		pred = X.dot(w[:, :X.shape[1]].T) + w[:, -1].reshape((1, -1))
 	return 1 / (1 + np.exp(-pred))
 
-def _grad_fun_bin(w, X, y, sample_weights=None, reg_param=None):
+def _grad_fun_bin(w, X, y, sample_weights=None, reg_param=0):
 	return _logistic_loss_and_grad(w, X, y, reg_param)[1]
-def _hessvec_fun_bin(w, v, X, y, sample_weights=None, reg_param=None):
+def _hessvec_fun_bin(w, v, X, y, sample_weights=None, reg_param=0):
 	temp = _logistic_grad_hess(w, X, y, reg_param)[1]
 	return temp(v)
-def _obj_fun_bin(w, X, y, sample_weights=None, reg_param=None):
+def _obj_fun_bin(w, X, y, sample_weights=None, reg_param=0):
 	return _logistic_loss_and_grad(w, X, y, reg_param)[0]
 def _pred_fun_bin(w, X):
 	if w.shape[0] == X.shape[1]:
@@ -123,6 +123,7 @@ class StochasticLogisticRegression:
 		if isspmatrix(y):
 			warnings.warn("'StochasticLogisticRegression' only supports dense arrays for 'y', will cast the array.")
 			y = np.array(y.todense())
+		sample_weights /= X.shape[0] ### scikit-learn's function compute sums instead of means
 		return X, y, sample_weights
 
 	def _initialize_optimizer(self, X, y):
