@@ -34,18 +34,19 @@ def _pred_fun_bin(w, X):
 	return (1 / (1 + np.exp(-pred))).reshape(-1)
 
 class StochasticLogisticRegression:
-	def __init__(self, reg_param=1e-1, add_intercept=True, random_state=1, optimizer="SQN", step_size=1e-3, valset_frac=0.1, verbose=False, **optimizer_kwargs):
+	def __init__(self, reg_param=1e-3, fit_intercept=True, random_state=1, optimizer="SQN", step_size=1e-1, valset_frac=0.1, verbose=False, **optimizer_kwargs):
 		"""
 		Logistic Regression fit with stochastic quasi-Newton optimizer
 
 		Parameters
 		----------
 		reg_param : float
-			Strength of l2 regularization.
+			Strength of l2 regularization. Note that the loss function has an average log-loss over observations,
+			so the optimal regulatization will likely be a lot smaller than for scikit-learn's (which uses sum instead).
 		step_size : float
 			Initial step size to use. Note that it will be decreased after each epoch when using 'fit',
 			but will not be decreased after calling 'partial_fit'.
-		add_intercept : bool
+		fit_intercept : bool
 			Whether to add an intercept to the model parameters.
 		random_state : int
 			Random seed to use.
@@ -69,9 +70,39 @@ class StochasticLogisticRegression:
 		self.reg_param = reg_param
 		self.nclasses = None
 		self._is_mult = None
-		self.add_intercept = bool(add_intercept)
+		self.fit_intercept = bool(fit_intercept)
 		self.is_fitted = False
 		self.random_state = random_state
+
+	@property
+	def coef_(self):
+		if not self.is_fitted:
+			return None
+		if self._is_mult:
+			if self.fit_intercept:
+				return (self.optimizer.x.reshape((self.nclasses, -1)))[:, -1 + self.optimizer.x.shape[0] / self.nclasses]
+			else:
+				return self.optimizer.x.reshape((self.nclasses, -1))
+		else:
+			if self.fit_intercept:
+				return self.optimizer.x[:self.optimizer.x.shape[0] - 1]
+			else:
+				return self.optimizer.x
+
+	@property
+	def intercept_(self):
+		if not self.is_fitted:
+			return None
+		if self._is_mult:
+			if self.fit_intercept:
+				return (self.optimizer.xreshape((self.nclasses, -1)))[:, -1]
+			else:
+				return np.zeros(self.nclasses)
+		else:
+			if self.fit_intercept:
+				return self.optimizer.x[-1]
+			else:
+				return 0.0
 
 	def predict(self, X):
 		"""
@@ -143,7 +174,7 @@ class StochasticLogisticRegression:
 				hess_vec_fun = _hessvec_fun_mult
 				pred_fun = _pred_fun_mult
 			np.random.seed(self.random_state)
-			w0 = np.random.normal(size = (X.shape[1] + self.add_intercept) * (y.shape[1] if self._is_mult else 1))
+			w0 = np.random.normal(size = (X.shape[1] + self.fit_intercept) * (y.shape[1] if self._is_mult else 1))
 			if self.optimizer_name == "oLBFGS":
 				self.optimizer = oLBFGS(x0=w0, grad_fun=grad_fun, obj_fun=obj_fun, pred_fun=pred_fun, **self.optimizer_kwargs)
 			elif self.optimizer_name == "SQN":
