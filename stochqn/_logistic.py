@@ -1,5 +1,5 @@
 import numpy as np, warnings
-from stochqn._optimizers import oLBFGS, SQN, adaQN, _StochQN
+from stochqn._optimizers import oLBFGS, SQN, adaQN, _StochQN, _step_size_const
 from sklearn.linear_model.logistic import _logistic_loss_and_grad, _logistic_grad_hess
 from sklearn.linear_model.logistic import _multinomial_loss_grad, _multinomial_grad_hess
 from scipy.sparse import isspmatrix
@@ -208,14 +208,9 @@ class StochasticLogisticRegression:
 		self.is_fitted = True
 		return self
 
-	def partial_fit(self, X, y, sample_weight=None, classes=None):
+	def partial_fit(self, X, y, sample_weight=None, classes=None, decr_step_size=False):
 		"""
 		Fit Logistic Regression model in stochastic batches
-
-		Note
-		----
-		The step size will not be decrease after running this function. In order to decrease
-		the step size manually, you can set 'this.optimizer.step_size'.
 
 		Parameters
 		----------
@@ -228,6 +223,9 @@ class StochasticLogisticRegression:
 		classes : None
 			Not used. Kept there for compatibility with other packages that
 			assume scikit-learn's API.
+		decr_step_size : bool
+			Whether to decrease or not decrease the step size after the update is
+			done, according to the function 'decr_step_size' passed at initialization.
 
 		Returns
 		-------
@@ -236,9 +234,12 @@ class StochasticLogisticRegression:
 		"""
 		X, y, sample_weight = self._check_fit_inp(X, y, sample_weight)
 		self._initialize_optimizer(X, y)
-		decr_step_size_before = self.optimizer.decr_step_size
-		self.optimizer.decr_step_size = None
-		self.optimizer.partial_fit(X, y, sample_weight, {"reg_param" : self.reg_param})
-		self.optimizer.decr_step_size = decr_step_size_before
+		if decr_step_size:
+			self.optimizer.partial_fit(X, y, sample_weight, {"reg_param" : self.reg_param})
+		else:
+			decr_step_size_before = self.optimizer.decr_step_size
+			self.optimizer.decr_step_size = _step_size_const
+			self.optimizer.partial_fit(X, y, sample_weight, {"reg_param" : self.reg_param})
+			self.optimizer.decr_step_size = decr_step_size_before
 		self.is_fitted = True
 		return self
