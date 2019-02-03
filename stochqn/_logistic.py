@@ -4,12 +4,12 @@ from sklearn.linear_model.logistic import _logistic_loss_and_grad, _logistic_gra
 from sklearn.linear_model.logistic import _multinomial_loss_grad, _multinomial_grad_hess
 from scipy.sparse import isspmatrix
 
-def _grad_fun_multi(w, X, y, sample_weights=None, reg_param=0):
-	return _multinomial_loss_grad(w, X, y, reg_param, sample_weights)[1]
-def _obj_fun_mult(w, X, y, sample_weights=None, reg_param=0):
-	return _multinomial_loss_grad(w, X, y, reg_param, sample_weights)[0]
-def _hessvec_fun_mult(w, v, X, y, sample_weights=None, reg_param=0):
-	temp = _multinomial_grad_hess(w, X, y, reg_param, sample_weights)[1]
+def _grad_fun_multi(w, X, y, sample_weight=None, reg_param=0):
+	return _multinomial_loss_grad(w, X, y, reg_param, sample_weight)[1]
+def _obj_fun_mult(w, X, y, sample_weight=None, reg_param=0):
+	return _multinomial_loss_grad(w, X, y, reg_param, sample_weight)[0]
+def _hessvec_fun_mult(w, v, X, y, sample_weight=None, reg_param=0):
+	temp = _multinomial_grad_hess(w, X, y, reg_param, sample_weight)[1]
 	return temp(v)
 def _pred_fun_mult(w, X, nclasses):
 	w = w.reshape((nclasses, -1))
@@ -19,13 +19,13 @@ def _pred_fun_mult(w, X, nclasses):
 		pred = X.dot(w[:, :X.shape[1]].T) + w[:, -1].reshape((1, -1))
 	return 1 / (1 + np.exp(-pred))
 
-def _grad_fun_bin(w, X, y, sample_weights=None, reg_param=0):
-	return _logistic_loss_and_grad(w, X, y, reg_param)[1]
-def _hessvec_fun_bin(w, v, X, y, sample_weights=None, reg_param=0):
-	temp = _logistic_grad_hess(w, X, y, reg_param)[1]
+def _grad_fun_bin(w, X, y, sample_weight=None, reg_param=0):
+	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weight)[1]
+def _hessvec_fun_bin(w, v, X, y, sample_weight=None, reg_param=0):
+	temp = _logistic_grad_hess(w, X, y, reg_param, sample_weight)[1]
 	return temp(v)
-def _obj_fun_bin(w, X, y, sample_weights=None, reg_param=0):
-	return _logistic_loss_and_grad(w, X, y, reg_param)[0]
+def _obj_fun_bin(w, X, y, sample_weight=None, reg_param=0):
+	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weight)[0]
 def _pred_fun_bin(w, X):
 	if w.shape[0] == X.shape[1]:
 		pred = X.dot(w)
@@ -143,19 +143,19 @@ class StochasticLogisticRegression:
 			out = np.c_[1 - pred, pred]
 			return out
 
-	def _check_fit_inp(self, X, y, sample_weights):
-		if sample_weights is None:
-			sample_weights = np.ones(X.shape[0])
+	def _check_fit_inp(self, X, y, sample_weight):
+		if sample_weight is None:
+			sample_weight = np.ones(X.shape[0])
 		else:
-			sample_weights = sample_weights.reshape(-1)
-		assert sample_weights.shape[0] == X.shape[0]
+			sample_weight = sample_weight.reshape(-1)
+		assert sample_weight.shape[0] == X.shape[0]
 		assert X.shape[0] == y.shape[0]
 		X = _StochQN._check_sp_type(self, X)
 		if isspmatrix(y):
 			warnings.warn("'StochasticLogisticRegression' only supports dense arrays for 'y', will cast the array.")
 			y = np.array(y.todense())
-		sample_weights /= X.shape[0] ### scikit-learn's function compute sums instead of means
-		return X, y, sample_weights
+		sample_weight /= X.shape[0] ### scikit-learn's function compute sums instead of means
+		return X, y, sample_weight
 
 	def _initialize_optimizer(self, X, y):
 		if self.optimizer is None:
@@ -184,7 +184,7 @@ class StochasticLogisticRegression:
 			else:
 				raise ValueError("'optimizer' must be one of 'oLBFGS', 'SQN', or 'adaQN'.")
 
-	def fit(self, X, y, sample_weights=None):
+	def fit(self, X, y, sample_weight=None):
 		"""
 		Fit Logistic Regression model in stochastic batches
 
@@ -194,7 +194,7 @@ class StochasticLogisticRegression:
 			Covariates (features).
 		y : array(n_samples, ) or array(n_samples, n_classes)
 			Labels for each observation (must be already one-hot encoded).
-		sample_weights : array(n_samples, ) or None
+		sample_weight : array(n_samples, ) or None
 			Observation weights for each data point.
 
 		Returns
@@ -202,13 +202,13 @@ class StochasticLogisticRegression:
 		self : obj
 			This object
 		"""
-		X, y, sample_weights = self._check_fit_inp(X, y, sample_weights)
+		X, y, sample_weight = self._check_fit_inp(X, y, sample_weight)
 		self._initialize_optimizer(X, y)
-		self.optimizer.fit(X, y, sample_weights, {"reg_param" : self.reg_param})
+		self.optimizer.fit(X, y, sample_weight, {"reg_param" : self.reg_param})
 		self.is_fitted = True
 		return self
 
-	def partial_fit(self, X, y, sample_weights=None):
+	def partial_fit(self, X, y, sample_weight=None):
 		"""
 		Fit Logistic Regression model in stochastic batches
 
@@ -223,7 +223,7 @@ class StochasticLogisticRegression:
 			Covariates (features).
 		y : array(n_samples, ) or array(n_samples, n_classes)
 			Labels for each observation (must be already one-hot encoded).
-		sample_weights : array(n_samples, ) or None
+		sample_weight : array(n_samples, ) or None
 			Observation weights for each data point.
 
 		Returns
@@ -231,11 +231,11 @@ class StochasticLogisticRegression:
 		self : obj
 			This object
 		"""
-		X, y, sample_weights = self._check_fit_inp(X, y, sample_weights)
+		X, y, sample_weight = self._check_fit_inp(X, y, sample_weight)
 		self._initialize_optimizer(X, y)
 		decr_step_size_before = self.optimizer.decr_step_size
 		self.optimizer.decr_step_size = None
-		self.optimizer.partial_fit(X, y, sample_weights, {"reg_param" : self.reg_param})
+		self.optimizer.partial_fit(X, y, sample_weight, {"reg_param" : self.reg_param})
 		self.optimizer.decr_step_size = decr_step_size_before
 		self.is_fitted = True
 		return self
