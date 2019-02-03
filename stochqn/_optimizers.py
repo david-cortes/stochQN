@@ -15,18 +15,18 @@ class _StochQN:
 	def __init__(self):
 		pass
 
-	def _check_fit_inputs(self, X, y, sample_weights, additional_kwargs={}, check_sp=False):
+	def _check_fit_inputs(self, X, y, sample_weight, additional_kwargs={}, check_sp=False):
 		assert X.shape[0] > 0
 		assert X.shape[0] == y.shape[0]
-		if sample_weights is not None:
-			assert sample_weights.shape[0] == X.shape[0]
+		if sample_weight is not None:
+			assert sample_weight.shape[0] == X.shape[0]
 		if additional_kwargs is None:
 			additional_kwargs = dict()
 		assert isinstance(additional_kwargs, dict)
 		if check_sp:
 			X, y = self._check_sp_type(X), self._check_sp_type(y)
-			sample_weights = self._check_sp_type(sample_weights) if sample_weights is not None else None
-		return X, y, sample_weights, additional_kwargs
+			sample_weight = self._check_sp_type(sample_weight) if sample_weight is not None else None
+		return X, y, sample_weight, additional_kwargs
 
 	def _check_sp_type(self, X):
 		if isspmatrix(X):
@@ -120,7 +120,7 @@ class _StochQN:
 				raise ValueError(msg_cb)
 		
 		msg_fun = lambda fun_name, allow_None: "'" + fun_name + \
-			"' must be a function that takes as argument the variables values, X, y, sample_weights, and additional keyword arguments" +\
+			"' must be a function that takes as argument the variables values, X, y, sample_weight, and additional keyword arguments" +\
 			(", or 'None" if allow_None else "") + "."
 		if not callable(grad_fun):
 			raise ValueError(msg_fun("grad_fun", False))
@@ -171,7 +171,7 @@ class _StochQN:
 		else:
 			del self.use_grad_diff
 
-	def fit(self, X, y, sample_weights=None, additional_kwargs={}, valset=None):
+	def fit(self, X, y, sample_weight=None, additional_kwargs={}, valset=None):
 		"""
 		Fit model to sample data
 
@@ -181,12 +181,12 @@ class _StochQN:
 			Sample data to which to fit the model.
 		y : array(n_samples, )
 			Labels or target values for the sample data.
-		sample_weights : None or array(n_samples, )
+		sample_weight : None or array(n_samples, )
 			Observations weights for the sample data.
 		additional_kwargs : dict
 			Additional keyword arguments to pass to the objective, gradient, and Hessian-vector functions.
 		valset : tuple(3)
-			User-provided validation set containing (X_val, y_val, sample_weights_val).
+			User-provided validation set containing (X_val, y_val, sample_weight_val).
 			At the end of each epoch, will calculate objective function on this set, and if
 			the decrease from the objective function in the previous epoch is below tolerance,
 			will terminate procedure earlier.
@@ -198,7 +198,7 @@ class _StochQN:
 		self : obj
 			This object.
 		"""
-		X, y, sample_weights, additional_kwargs = self._check_fit_inputs(X, y, sample_weights, additional_kwargs, check_sp=True)
+		X, y, sample_weight, additional_kwargs = self._check_fit_inputs(X, y, sample_weight, additional_kwargs, check_sp=True)
 		if valset is not None:
 			if self.obj_fun is None:
 				raise ValueError("Must provide objective function when using a validation set for monitoring.")
@@ -210,11 +210,11 @@ class _StochQN:
 				warnings.warn("'valset_frac' is ignored when passign a validation set to '.fit'.")
 
 		elif self.valset_frac is not None:
-			if sample_weights is None:
+			if sample_weight is None:
 				X, X_val, y, y_val = train_test_split(X, y, test_size=self.valset_frac, random_state=self.random_state)
 				w_val = None
 			else:
-				X, X_val, y, y_val, sample_weights, w_val = train_test_split(X, y, sample_weights, test_size=self.valset_frac, random_state=self.random_state)
+				X, X_val, y, y_val, sample_weight, w_val = train_test_split(X, y, sample_weight, test_size=self.valset_frac, random_state=self.random_state)
 		else:
 			X_val, y_val, w_val = None, None, None
 		obj_last_epoch = np.inf
@@ -228,23 +228,23 @@ class _StochQN:
 				rand_ord = np.argsort( np.random.random(size=X.shape[0]) )
 				X = X[rand_ord]
 				y = y[rand_ord]
-				sample_weights = sample_weights[rand_ord] if sample_weights is not None else None
+				sample_weight = sample_weight[rand_ord] if sample_weight is not None else None
 
 			for batch in range(self.batches_per_epoch):
 				st_batch_ix = batch * self.batch_size
 				end_batch_ix = min(X.shape[0], (batch + 1) * self.batch_size)
 				X_batch = X[st_batch_ix : end_batch_ix]
 				y_batch = y[st_batch_ix : end_batch_ix]
-				w_batch = sample_weights[st_batch_ix : end_batch_ix] if sample_weights is not None else None
+				w_batch = sample_weight[st_batch_ix : end_batch_ix] if sample_weight is not None else None
 
 				self._fit_batch(X_batch, y_batch, w_batch, additional_kwargs, is_user_batch=False,
-					X_full=X, y_full=y, w_full=sample_weights, X_val=X_val, y_val=y_val, w_val=w_val, batch=batch)
+					X_full=X, y_full=y, w_full=sample_weight, X_val=X_val, y_val=y_val, w_val=w_val, batch=batch)
 
 			if self.callback_epoch is not None:
 				self.callback_epoch(self.x, **self.kwargs_cb)
 
 			if X_val is not None and self.obj_fun is not None:
-				obj_this_epoch = self.obj_fun(self.x, X_val, y_val, sample_weights=w_val, **additional_kwargs)
+				obj_this_epoch = self.obj_fun(self.x, X_val, y_val, sample_weight=w_val, **additional_kwargs)
 				if self.verbose:
 					print((self.optimizer_name + " - epoch: %2d, f(x): %12.4f") % (self.epoch + 1, obj_this_epoch) )
 				if (obj_last_epoch - obj_this_epoch) < self.tol and obj_this_epoch <= obj_last_epoch:
@@ -260,7 +260,7 @@ class _StochQN:
 
 		return self
 
-	def partial_fit(self, X, y, sample_weights=None, additional_kwargs={}):
+	def partial_fit(self, X, y, sample_weight=None, additional_kwargs={}):
 		"""
 		Update model with user-provided batches of data
 
@@ -284,7 +284,7 @@ class _StochQN:
 			Sample data to with which to update the model.
 		y : array(n_samples, )
 			Labels or target values for the sample data.
-		sample_weights : None or array(n_samples, )
+		sample_weight : None or array(n_samples, )
 			Observations weights for the sample data.
 		additional_kwargs : dict
 			Additional keyword arguments to pass to the objective, gradient, and Hessian-vector functions.
@@ -294,7 +294,7 @@ class _StochQN:
 		self : obj
 			This object.
 		"""
-		X, y, sample_weights, additional_kwargs = self._check_fit_inputs(X, y, sample_weights, additional_kwargs, check_sp=False)
+		X, y, sample_weight, additional_kwargs = self._check_fit_inputs(X, y, sample_weight, additional_kwargs, check_sp=False)
 
 		save_batch = False
 		if self.optimizer_name == "SQN":
@@ -306,9 +306,9 @@ class _StochQN:
 		if save_batch:
 			self.stored_samples_X.append(X)
 			self.stored_samples_y.append(y)
-			self.stored_samples_w.append(sample_weights)
+			self.stored_samples_w.append(sample_weight)
 
-		self._fit_batch(X, y, sample_weights, additional_kwargs, is_user_batch=True)
+		self._fit_batch(X, y, sample_weight, additional_kwargs, is_user_batch=True)
 		return self
 
 	def _fit_batch(self, X_batch, y_batch, w_batch, additional_kwargs, is_user_batch=False,
@@ -316,11 +316,11 @@ class _StochQN:
 		
 		while True:
 			if self.req["task"] == "calc_grad" or self.req["task"] == "calc_grad_same_batch":
-				self.optimizer.update_gradient(self.grad_fun(self.req["requested_on"], X_batch, y_batch, sample_weights=w_batch, **additional_kwargs))
+				self.optimizer.update_gradient(self.grad_fun(self.req["requested_on"], X_batch, y_batch, sample_weight=w_batch, **additional_kwargs))
 			
 			else:
 				if self.req["task"] == "calc_fun_val_batch" and X_val is not None:
-					self.optimizer.update_function(self.obj_fun(self.req["requested_on"], X_val, y_val, sample_weights=w_val, **additional_kwargs))
+					self.optimizer.update_function(self.obj_fun(self.req["requested_on"], X_val, y_val, sample_weight=w_val, **additional_kwargs))
 				
 				else:
 					if is_user_batch:
@@ -329,11 +329,11 @@ class _StochQN:
 						X_long, y_long, w_long = self._get_long_batch(X_full, y_full, w_full, batch)
 
 					if self.req["task"] == "calc_grad_big_batch":
-						self.optimizer.update_gradient(self.grad_fun(self.req["requested_on"], X_long, y_long, sample_weights=w_long, **additional_kwargs))
+						self.optimizer.update_gradient(self.grad_fun(self.req["requested_on"], X_long, y_long, sample_weight=w_long, **additional_kwargs))
 					elif self.req["task"] == "calc_hess_vec":
-						self.optimizer.update_hess_vec(self.hess_vec_fun(self.req["requested_on"][0], self.req["requested_on"][1], X_long, y_long, sample_weights=w_long, **additional_kwargs))
+						self.optimizer.update_hess_vec(self.hess_vec_fun(self.req["requested_on"][0], self.req["requested_on"][1], X_long, y_long, sample_weight=w_long, **additional_kwargs))
 					elif self.req["task"] == "calc_fun_val_batch":
-						self.optimizer.update_function(self.obj_fun(self.req["requested_on"], X_long, y_long, sample_weights=w_long, **additional_kwargs))
+						self.optimizer.update_function(self.obj_fun(self.req["requested_on"], X_long, y_long, sample_weight=w_long, **additional_kwargs))
 					else:
 						raise ValueError("Unexpected error. Please open an issue in GitHub explaining what you were doing.")
 
@@ -402,12 +402,12 @@ class oLBFGS(_StochQN):
 		----------
 		x0 : array (m, )
 			Initial values of the variables to optimize (refered hereafter as 'x').
-		grad_fun : function(x, X, y, sample_weights, **kwargs) --> array(m, )
+		grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
 			Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
 			Note: output must be one-dimensional and with the same number of entries as 'x',
 			otherwise the Python session might segfault.
 			(The extra keyword arguments are passed in the 'fit' method, not here)
-		obj_fun : function(x, X, y, sample_weights, **kwargs) --> float
+		obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
 			Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
 			Only used when using a validation set ('valset_frac' not None, or 'valset' passed to fit).
 			Ignored when fitting the data in user-provided batches.
@@ -506,17 +506,17 @@ class SQN(_StochQN):
 		----------
 		x0 : array (m, )
 			Initial values of the variables to optimize (refered hereafter as 'x').
-		grad_fun : function(x, X, y, sample_weights, **kwargs) --> array(m, )
+		grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
 			Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
 			Note: output must be one-dimensional and with the same number of entries as 'x',
 			otherwise the Python session might segfault.
 			(The extra keyword arguments are passed in the 'fit' method, not here)
-		obj_fun : function(x, X, y, sample_weights, **kwargs) --> float
+		obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
 			Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
 			Only used when using a validation set ('valset_frac' not None, or 'valset' passed to fit).
 			Ignored when fitting the data in user-provided batches.
 			(The extra keyword arguments are passed in the 'fit' method, not here)
-		hess_vec_fun : function(x, vec, X, y, sample_weights, **kwargs) --> array(m, )
+		hess_vec_fun : function(x, vec, X, y, sample_weight, **kwargs) --> array(m, )
 			Function that calculates the product of a vector the empirical Hessian at values 'x' on data 'X' and 'y'.
 			Ignored when using 'use_grad_diff=True'.
 			Note: output must be one-dimensional and with the same number of entries as 'x',
@@ -631,12 +631,12 @@ class adaQN(_StochQN):
 		----------
 		x0 : array (m, )
 			Initial values of the variables to optimize (refered hereafter as 'x').
-		grad_fun : function(x, X, y, sample_weights, **kwargs) --> array(m, )
+		grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
 			Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
 			Note: output must be one-dimensional and with the same number of entries as 'x',
 			otherwise the Python session might segfault.
 			(The extra keyword arguments are passed in the 'fit' method, not here)
-		obj_fun : function(x, X, y, sample_weights, **kwargs) --> float
+		obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
 			Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
 			Will be ignored if passing 'max_incr=None' and no validation set
 			('valset_frac=None', and no 'valset' passed to fit).
