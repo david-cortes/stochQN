@@ -208,7 +208,7 @@ class StochasticLogisticRegression:
 		self.is_fitted = True
 		return self
 
-	def partial_fit(self, X, y, sample_weight=None):
+	def partial_fit(self, X, y, sample_weight=None, classes=None):
 		"""
 		Fit Logistic Regression model in stochastic batches
 
@@ -225,6 +225,9 @@ class StochasticLogisticRegression:
 			Labels for each observation (must be already one-hot encoded).
 		sample_weight : array(n_samples, ) or None
 			Observation weights for each data point.
+		classes : None
+			Not used. Kept there for compatibility with other packages that
+			assume scikit-learn's API.
 
 		Returns
 		-------
