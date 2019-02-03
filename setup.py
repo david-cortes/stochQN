@@ -27,7 +27,7 @@ setup(
 	name  = "stochqn",
 	packages = ["stochqn"],
 	version = '0.1.3.4',
-	description = 'Stochastich limited-memory quasi-Newton optimizers',
+	description = 'Stochastic limited-memory quasi-Newton optimizers',
 	author = 'David Cortes',
 	author_email = 'david.cortes.rivera@gmail.com',
 	url = 'https://github.com/david-cortes/stochQN',
