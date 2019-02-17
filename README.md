@@ -203,7 +203,7 @@ C documentation is available in the header file [include/stochqn.h](https://www.
 
 ## Known issues
 
-In Python, when using parameter `shuffle_data = True`, oftentimes the results are not reproducible between the first run and further runs (from the second onwards they are reproducible though), despite using the same random seed. It might in some cases also cause data corruption on the variable values (turning them to random values), but this only happens the first time it is run. This seems to be a problem with either numpy or cython, and so far the only fix seems to be to use `shuffle_data = False` (can also be avoided by manually removing the code that sets the random seeds).
+In Python, when using parameter `shuffle_data = True`, oftentimes the results are not reproducible between the first run and further runs (from the second onwards they are reproducible though), despite using the same random seed. So far the only fix seems to be to use `shuffle_data = False` (can also be avoided by manually removing the code that sets the random seeds).
 
 ## Serializing (pickling) objects in Python
 
