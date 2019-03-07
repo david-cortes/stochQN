@@ -457,43 +457,44 @@ cdef class _StochQN_free:
 
 @cython.embedsignature(True)
 cdef class oLBFGS_free(_StochQN_free):
+	"""
+	oLBFGS optimizer (free mode)
+
+	Optimizes an empirical (convex) loss function over batches of sample data. Compared to
+	class 'oLBFGS', this version lets the user do all the calculations from the outside, only
+	interacting with the object by mode of a function that returns a request type and is fed the
+	required calculation through a method 'update_gradient'.
+
+	Order in which requests are made:
+
+	========== loop ===========
+	* calc_grad
+	* calc_grad_same_batch		(might skip if using check_nan)
+	===========================
+
+	Parameters
+	----------
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	hess_init : float or None
+		value to which to initialize the diagonal of H0.
+		If passing 0, will use the same initializion as for SQN (s_last*y_last / y_last*y_last).
+	y_reg : float or None
+		regularizer for 'y' vector (gets added y_reg * s)
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+	"""
+
 	cdef public _cy_oLBFGS _oLBFGS
 	cdef public double hess_init
 
 	def __init__(self, mem_size=10, hess_init=None, min_curvature=1e-4, y_reg=None, check_nan=True, nthreads=-1):
-		"""
-		oLBFGS optimizer (free mode)
-
-		Optimizes an empirical (convex) loss function over batches of sample data. Compared to
-		class 'oLBFGS', this version lets the user do all the calculations from the outside, only
-		interacting with the object by mode of a function that returns a request type and is fed the
-		required calculation through a method 'update_gradient'.
-
-		Order in which requests are made:
-
-		========== loop ===========
-		* calc_grad
-		* calc_grad_same_batch		(might skip if using check_nan)
-		===========================
-
-		Parameters
-		----------
-		mem_size : int
-			Number of correction pairs to store for approximation of Hessian-vector products.
-		hess_init : float or None
-			value to which to initialize the diagonal of H0.
-			If passing 0, will use the same initializion as for SQN (s_last*y_last / y_last*y_last).
-		y_reg : float or None
-			regularizer for 'y' vector (gets added y_reg * s)
-		min_curvature : float or None
-			Minimum value of s*y / s*s in order to accept a correction pair.
-		check_nan : bool
-			Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
-			(will also reset BFGS memory).
-		nthreads : int
-			Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-			all of them. Note however that not all the computations can be parallelized.
-		"""
 		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
 		if hess_init is not None:
 			assert hess_init > 0
@@ -569,6 +570,44 @@ cdef class oLBFGS_free(_StochQN_free):
 
 @cython.embedsignature(True)
 cdef class SQN_free(_StochQN_free):
+	"""
+	SQN optimizer (free mode)
+
+	Optimizes an empirical (convex) loss function over batches of sample data. Compared to
+	class 'SQN', this version lets the user do all the calculations from the outside, only
+	interacting with the object by mode of a function that returns a request type and is fed the
+	required calculation through methods 'update_gradient' and 'update_hess_vec'.
+
+	Order in which requests are made:
+
+	========== loop ===========
+	* calc_grad
+		... (repeat calc_grad)
+	if 'use_grad_diff':
+		* calc_grad_big_batch
+	else:
+		* calc_hess_vec
+	===========================
+
+	Parameters
+	----------
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	bfgs_upd_freq : int
+		Number of iterations (batches) after which to generate a BFGS correction pair.
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	use_grad_diff : bool
+		Whether to create the correction pairs using differences between gradients instead of Hessian-vector products.
+		These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+	"""
+
 	cdef double *req_vec_ptr
 	cdef double[:] hess_vec
 	cdef public _cy_SQN _SQN
@@ -577,43 +616,6 @@ cdef class SQN_free(_StochQN_free):
 	cdef public int use_grad_diff
 
 	def __init__(self, mem_size=10, bfgs_upd_freq=20, min_curvature=1e-4, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1):
-		"""
-		SQN optimizer (free mode)
-
-		Optimizes an empirical (convex) loss function over batches of sample data. Compared to
-		class 'SQN', this version lets the user do all the calculations from the outside, only
-		interacting with the object by mode of a function that returns a request type and is fed the
-		required calculation through methods 'update_gradient' and 'update_hess_vec'.
-
-		Order in which requests are made:
-
-		========== loop ===========
-		* calc_grad
-			... (repeat calc_grad)
-		if 'use_grad_diff':
-			* calc_grad_big_batch
-		else:
-			* calc_hess_vec
-		===========================
-
-		Parameters
-		----------
-		mem_size : int
-			Number of correction pairs to store for approximation of Hessian-vector products.
-		bfgs_upd_freq : int
-			Number of iterations (batches) after which to generate a BFGS correction pair.
-		min_curvature : float or None
-			Minimum value of s*y / s*s in order to accept a correction pair.
-		use_grad_diff : bool
-			Whether to create the correction pairs using differences between gradients instead of Hessian-vector products.
-			These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
-		check_nan : bool
-			Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
-			(will also reset BFGS memory).
-		nthreads : int
-			Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-			all of them. Note however that not all the computations can be parallelized.
-		"""
 		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
 		assert bfgs_upd_freq > 0
 
@@ -719,6 +721,58 @@ cdef class SQN_free(_StochQN_free):
 
 @cython.embedsignature(True)
 cdef class adaQN_free(_StochQN_free):
+	"""
+	adaQN optimizer (free mode)
+
+	Optimizes an empirical (perhaps non-convex) loss function over batches of sample data. Compared to
+	class 'adaQN', this version lets the user do all the calculations from the outside, only
+	interacting with the object by mode of a function that returns a request type and is fed the
+	required calculation through methods 'update_gradient' and 'update_function'.
+
+	Order in which requests are made:
+
+	========== loop ===========
+	* calc_grad
+		... (repeat calc_grad)
+	if max_incr > 0:
+		* calc_fun_val_batch
+	if 'use_grad_diff':
+		* calc_grad_big_batch	(skipped if below max_incr)
+	===========================
+
+	Parameters
+	----------
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	fisher_size : int or None
+		Number of gradients to store for calculation of the empirical Fisher product with gradients.
+		If passing 'None', will force 'use_grad_diff' to 'True'.
+	bfgs_upd_freq : int
+		Number of iterations (batches) after which to generate a BFGS correction pair.
+	max_incr : float or None
+		Maximum ratio of function values in the validation set under the average values of 'x' during current epoch
+		vs. previous epoch. If the ratio is above this threshold, the BFGS and Fisher memories will be reset, and 'x'
+		values reverted to their previous average.
+		If not using a validation set, will take a longer batch for function evaluations (same as used for gradients
+		when using 'use_grad_diff=True').
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	scal_reg : float
+		Regularization parameter to use in the denominator for AdaGrad and RMSProp scaling.
+	rmsprop_weight : float(0,1) or None
+		If not 'None', will use RMSProp formula instead of AdaGrad for approximated inverse-Hessian initialization.
+	use_grad_diff : bool
+		Whether to create the correction pairs using differences between gradients instead of Fisher matrix.
+		These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
+		If 'True', fisher_size will be set to None, and empirical Fisher matrix will not be used.
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+	"""
+	
 	cdef public double f
 	cdef public _cy_adaQN _adaQN
 	
@@ -731,57 +785,6 @@ cdef class adaQN_free(_StochQN_free):
 
 	def __init__(self, mem_size=10, fisher_size=100, bfgs_upd_freq=20, max_incr=1.01, min_curvature=1e-4, scal_reg=1e-4,
 		rmsprop_weight=None, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1):
-		"""
-		adaQN optimizer (free mode)
-
-		Optimizes an empirical (perhaps non-convex) loss function over batches of sample data. Compared to
-		class 'adaQN', this version lets the user do all the calculations from the outside, only
-		interacting with the object by mode of a function that returns a request type and is fed the
-		required calculation through methods 'update_gradient' and 'update_function'.
-
-		Order in which requests are made:
-
-		========== loop ===========
-		* calc_grad
-			... (repeat calc_grad)
-		if max_incr > 0:
-			* calc_fun_val_batch
-		if 'use_grad_diff':
-			* calc_grad_big_batch	(skipped if below max_incr)
-		===========================
-
-		Parameters
-		----------
-		mem_size : int
-			Number of correction pairs to store for approximation of Hessian-vector products.
-		fisher_size : int or None
-			Number of gradients to store for calculation of the empirical Fisher product with gradients.
-			If passing 'None', will force 'use_grad_diff' to 'True'.
-		bfgs_upd_freq : int
-			Number of iterations (batches) after which to generate a BFGS correction pair.
-		max_incr : float or None
-			Maximum ratio of function values in the validation set under the average values of 'x' during current epoch
-			vs. previous epoch. If the ratio is above this threshold, the BFGS and Fisher memories will be reset, and 'x'
-			values reverted to their previous average.
-			If not using a validation set, will take a longer batch for function evaluations (same as used for gradients
-			when using 'use_grad_diff=True').
-		min_curvature : float or None
-			Minimum value of s*y / s*s in order to accept a correction pair.
-		scal_reg : float
-			Regularization parameter to use in the denominator for AdaGrad and RMSProp scaling.
-		rmsprop_weight : float(0,1) or None
-			If not 'None', will use RMSProp formula instead of AdaGrad for approximated inverse-Hessian initialization.
-		use_grad_diff : bool
-			Whether to create the correction pairs using differences between gradients instead of Fisher matrix.
-			These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
-			If 'True', fisher_size will be set to None, and empirical Fisher matrix will not be used.
-		check_nan : bool
-			Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
-			(will also reset BFGS memory).
-		nthreads : int
-			Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-			all of them. Note however that not all the computations can be parallelized.
-		"""
 
 		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
 		assert bfgs_upd_freq > 0
