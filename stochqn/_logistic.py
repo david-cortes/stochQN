@@ -34,27 +34,29 @@ def _pred_fun_bin(w, X):
 	return (1 / (1 + np.exp(-pred))).reshape(-1)
 
 class StochasticLogisticRegression:
-	def __init__(self, reg_param=1e-3, fit_intercept=True, random_state=1, optimizer="SQN", step_size=1e-1, valset_frac=0.1, verbose=False, **optimizer_kwargs):
-		"""
-		Logistic Regression fit with stochastic quasi-Newton optimizer
+	"""
+	Logistic Regression fit with stochastic quasi-Newton optimizer
 
-		Parameters
-		----------
-		reg_param : float
-			Strength of l2 regularization. Note that the loss function has an average log-loss over observations,
-			so the optimal regulatization will likely be a lot smaller than for scikit-learn's (which uses sum instead).
-		step_size : float
-			Initial step size to use. Note that it will be decreased after each epoch when using 'fit',
-			but will not be decreased after calling 'partial_fit'.
-		fit_intercept : bool
-			Whether to add an intercept to the model parameters.
-		random_state : int
-			Random seed to use.
-		optimizer : str, one of 'oLBFGS', 'SQN', 'adaQN'
-			Optimizer to use.
-		optimizer_kwargs : dict, optional
-			Additional options to pass to the optimizer (see each optimizer's documentation).
-		"""
+	Parameters
+	----------
+	reg_param : float
+		Strength of l2 regularization. Note that the loss function has an average log-loss over observations,
+		so the optimal regulatization will likely be a lot smaller than for scikit-learn's (which uses sum instead).
+	step_size : float
+		Initial step size to use. Note that it will be decreased after each epoch when using 'fit',
+		but will not be decreased after calling 'partial_fit'.
+	fit_intercept : bool
+		Whether to add an intercept to the model parameters.
+	random_state : int
+		Random seed to use.
+	optimizer : str, one of 'oLBFGS', 'SQN', 'adaQN'
+		Optimizer to use.
+	optimizer_kwargs : dict, optional
+		Additional options to pass to the optimizer (see each optimizer's documentation).
+	"""
+	
+	def __init__(self, reg_param=1e-3, fit_intercept=True, random_state=1, optimizer="SQN", step_size=1e-1, valset_frac=0.1, verbose=False, **optimizer_kwargs):
+		
 		assert optimizer in ["oLBFGS", "SQN", "adaQN"]
 		assert step_size > 0
 		assert isinstance(step_size, float)

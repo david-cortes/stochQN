@@ -389,97 +389,98 @@ class _StochQN:
 
 #### Optimizers
 class oLBFGS(_StochQN):
+	"""
+	oLBFGS optimizer
+
+	Optimizes an empirical (convex) loss function over batches of sample data.
+
+	Parameters
+	----------
+	x0 : array (m, )
+		Initial values of the variables to optimize (refered hereafter as 'x').
+	grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
+		Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
+		Note: output must be one-dimensional and with the same number of entries as 'x',
+		otherwise the Python session might segfault.
+		(The extra keyword arguments are passed in the 'fit' method, not here)
+	obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
+		Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
+		Only used when using a validation set ('valset_frac' not None, or 'valset' passed to fit).
+		Ignored when fitting the data in user-provided batches.
+		(The extra keyword arguments are passed in the 'fit' method, not here)
+	pred_fun : None or function(xopt, X)
+		Prediction function taking as input the optimal 'x' values as obtained by the
+		optimization procedure, and new observation 'X' on which to make predictions.
+		If passed, will have an additional method oLBFGS.predict(X, *args) that calls
+		this function with current values of 'x'.
+	batches_per_epoch : int
+		Number of batches per epoch (each batch will have the same number of observations except for the
+		last one which might be smaller).
+	step_size : float
+		Initial step size to use.
+		(Can be modified after object is already initialized)
+	decr_step_size : str "auto", None, or function(initial_step_size, epoch) -> float
+		Function that determines the step size during each epoch, taking as input the initial
+		step size and the epoch number (starting at zero).
+		If "auto", will use 1/sqrt(iteration).
+		If None, will use constant step size.
+		For 'partial_fit', it will take as input the number of iterations of the algorithm rather than epoch,
+		so it's very recommended to provide a custom function when passing data in user-provided batches.
+		Can be modified after the object has been initialized (oLBFGS.decr_step_size)
+	shuffle_data : bool
+		Whether to shuffle the data at the beginning of each epoch.
+	random_state : int
+		Random seed to use for shuffling data and selecting validation set.
+		The algorithm is deterministic so it's not used for anything else.
+	nepochs : int
+		Number of epochs for which to run the optimization procedure.
+		Might terminate earlier if using a validation set for monitoring.
+	valset_frac : float(0, 1) or None
+		Percent of the data to use as validation set for early stopping.
+		Can also pass a user-provided validation set to 'fit', in which case it will
+		be ignored.
+		If passing None, will run for the number of epochs passed in 'nepochs'.
+	tol : float
+		If the objective function calculated on the validation set decrease by less than
+		'tol' upon completion of an epoch, will terminate the optimization procedure.
+		Ignored when not using a validation set.
+	callback_epoch : None or function*(x, **kwargs)
+		Callback function to call at the end of each epoch
+	callback_iter : None or function*(x, **kwargs)
+		Callback function to call at the end of each iteration
+	kwargs_cb : tuple
+		Additional arguments to pass to 'callback' and 'stop_crit'.
+		(Can be modified after object is already initialized)
+	verbose : bool
+		Whether to print messages when there is some problem during an iteration
+		(e.g. correction pair not meeting minum curvature).
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	hess_init : float or None
+		value to which to initialize the diagonal of H0.
+		If passing 0, will use the same initializion as for SQN (s_last*y_last / y_last*y_last).
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	y_reg : float or None
+		regularizer for 'y' vector (gets added y_reg * s)
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+
+	References
+	----------
+	Schraudolph, N.N., Yu, J. and Günter, S., 2007, March.
+	"A stochastic quasi-Newton method for online convex optimization."
+	In Artificial Intelligence and Statistics (pp. 436-443).
+	"""
+
 	def __init__(self, x0, grad_fun, obj_fun=None, pred_fun=None, batches_per_epoch=25, step_size=1e-3, decr_step_size="auto",
 		shuffle_data=True, random_state=1, nepochs=25, valset_frac=None, tol=1e-1,
 		callback_epoch=None, callback_iter=None, kwargs_cb={}, verbose=True,
 		mem_size=10, hess_init=None, min_curvature=1e-4, y_reg=None, check_nan=True, nthreads=-1):
-		"""
-		oLBFGS optimizer
-
-		Optimizes an empirical (convex) loss function over batches of sample data.
-
-		Parameters
-		----------
-		x0 : array (m, )
-			Initial values of the variables to optimize (refered hereafter as 'x').
-		grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
-			Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
-			Note: output must be one-dimensional and with the same number of entries as 'x',
-			otherwise the Python session might segfault.
-			(The extra keyword arguments are passed in the 'fit' method, not here)
-		obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
-			Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
-			Only used when using a validation set ('valset_frac' not None, or 'valset' passed to fit).
-			Ignored when fitting the data in user-provided batches.
-			(The extra keyword arguments are passed in the 'fit' method, not here)
-		pred_fun : None or function(xopt, X)
-			Prediction function taking as input the optimal 'x' values as obtained by the
-			optimization procedure, and new observation 'X' on which to make predictions.
-			If passed, will have an additional method oLBFGS.predict(X, *args) that calls
-			this function with current values of 'x'.
-		batches_per_epoch : int
-			Number of batches per epoch (each batch will have the same number of observations except for the
-			last one which might be smaller).
-		step_size : float
-			Initial step size to use.
-			(Can be modified after object is already initialized)
-		decr_step_size : str "auto", None, or function(initial_step_size, epoch) -> float
-			Function that determines the step size during each epoch, taking as input the initial
-			step size and the epoch number (starting at zero).
-			If "auto", will use 1/sqrt(iteration).
-			If None, will use constant step size.
-			For 'partial_fit', it will take as input the number of iterations of the algorithm rather than epoch,
-			so it's very recommended to provide a custom function when passing data in user-provided batches.
-			Can be modified after the object has been initialized (oLBFGS.decr_step_size)
-		shuffle_data : bool
-			Whether to shuffle the data at the beginning of each epoch.
-		random_state : int
-			Random seed to use for shuffling data and selecting validation set.
-			The algorithm is deterministic so it's not used for anything else.
-		nepochs : int
-			Number of epochs for which to run the optimization procedure.
-			Might terminate earlier if using a validation set for monitoring.
-		valset_frac : float(0, 1) or None
-			Percent of the data to use as validation set for early stopping.
-			Can also pass a user-provided validation set to 'fit', in which case it will
-			be ignored.
-			If passing None, will run for the number of epochs passed in 'nepochs'.
-		tol : float
-			If the objective function calculated on the validation set decrease by less than
-			'tol' upon completion of an epoch, will terminate the optimization procedure.
-			Ignored when not using a validation set.
-		callback_epoch : None or function*(x, **kwargs)
-			Callback function to call at the end of each epoch
-		callback_iter : None or function*(x, **kwargs)
-			Callback function to call at the end of each iteration
-		kwargs_cb : tuple
-			Additional arguments to pass to 'callback' and 'stop_crit'.
-			(Can be modified after object is already initialized)
-		verbose : bool
-			Whether to print messages when there is some problem during an iteration
-			(e.g. correction pair not meeting minum curvature).
-		mem_size : int
-			Number of correction pairs to store for approximation of Hessian-vector products.
-		hess_init : float or None
-			value to which to initialize the diagonal of H0.
-			If passing 0, will use the same initializion as for SQN (s_last*y_last / y_last*y_last).
-		min_curvature : float or None
-			Minimum value of s*y / s*s in order to accept a correction pair.
-		y_reg : float or None
-			regularizer for 'y' vector (gets added y_reg * s)
-		check_nan : bool
-			Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
-			(will also reset BFGS memory).
-		nthreads : int
-			Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-			all of them. Note however that not all the computations can be parallelized.
-
-		References
-		----------
-		Schraudolph, N.N., Yu, J. and Günter, S., 2007, March.
-		"A stochastic quasi-Newton method for online convex optimization."
-		In Artificial Intelligence and Statistics (pp. 436-443).
-		"""
 
 		self.optimizer_name = "oLBFGS"
 		self.optimizer = oLBFGS_free(mem_size, hess_init, min_curvature, y_reg, check_nan, nthreads)
@@ -493,107 +494,108 @@ class oLBFGS(_StochQN):
 		return self.optimizer._oLBFGS.niter
 
 class SQN(_StochQN):
+	"""
+	SQN optimizer
+
+	Optimizes an empirical (convex) loss function over batches of sample data.
+
+	Parameters
+	----------
+	x0 : array (m, )
+		Initial values of the variables to optimize (refered hereafter as 'x').
+	grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
+		Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
+		Note: output must be one-dimensional and with the same number of entries as 'x',
+		otherwise the Python session might segfault.
+		(The extra keyword arguments are passed in the 'fit' method, not here)
+	obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
+		Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
+		Only used when using a validation set ('valset_frac' not None, or 'valset' passed to fit).
+		Ignored when fitting the data in user-provided batches.
+		(The extra keyword arguments are passed in the 'fit' method, not here)
+	hess_vec_fun : function(x, vec, X, y, sample_weight, **kwargs) --> array(m, )
+		Function that calculates the product of a vector the empirical Hessian at values 'x' on data 'X' and 'y'.
+		Ignored when using 'use_grad_diff=True'.
+		Note: output must be one-dimensional and with the same number of entries as 'x',
+		otherwise the Python session might segfault.
+		These products are calculated on a larger batch than the gradients (given by batch_size * bfgs_upd_freq).
+		(The extra keyword arguments are passed in the 'fit' method, not here)
+	pred_fun : None or function(xopt, X)
+		Prediction function taking as input the optimal 'x' values as obtained by the
+		optimization procedure, and new observation 'X' on which to make predictions.
+		If passed, will have an additional method oLBFGS.predict(X, *args) that calls
+		this function with current values of 'x'.
+	batches_per_epoch : int
+		Number of batches per epoch (each batch will have the same number of observations except for the
+		last one which might be smaller).
+	step_size : float
+		Initial step size to use.
+		(Can be modified after object is already initialized)
+	decr_step_size : str "auto", None, or function(initial_step_size, epoch) -> float
+		Function that determines the step size during each epoch, taking as input the initial
+		step size and the epoch number (starting at zero).
+		If "auto", will use 1/sqrt(iteration).
+		If None, will use constant step size.
+		For 'partial_fit', it will take as input the number of iterations of the algorithm rather than epoch,
+		so it's very recommended to provide a custom function when passing data in user-provided batches.
+		Can be modified after the object has been initialized (oLBFGS.decr_step_size)
+	shuffle_data : bool
+		Whether to shuffle the data at the beginning of each epoch.
+	random_state : int
+		Random seed to use for shuffling data and selecting validation set.
+		The algorithm is deterministic so it's not used for anything else.
+	nepochs : int
+		Number of epochs for which to run the optimization procedure.
+		Might terminate earlier if using a validation set for monitoring.
+	valset_frac : float(0, 1) or None
+		Percent of the data to use as validation set for early stopping.
+		Can also pass a user-provided validation set to 'fit', in which case it will
+		be ignored.
+		If passing None, will run for the number of epochs passed in 'nepochs'.
+	tol : float
+		If the objective function calculated on the validation set decrease by less than
+		'tol' upon completion of an epoch, will terminate the optimization procedure.
+		Ignored when not using a validation set.
+	callback_epoch : None or function*(x, **kwargs)
+		Callback function to call at the end of each epoch
+	callback_iter : None or function*(x, **kwargs)
+		Callback function to call at the end of each iteration
+	kwargs_cb : tuple
+		Additional arguments to pass to 'callback' and 'stop_crit'.
+		(Can be modified after object is already initialized)
+	verbose : bool
+		Whether to print messages when there is some problem during an iteration
+		(e.g. correction pair not meeting minum curvature).
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	bfgs_upd_freq : int
+		Number of iterations (batches) after which to generate a BFGS correction pair.
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	y_reg : float or None
+		regularizer for 'y' vector (gets added y_reg * s)
+	use_grad_diff : bool
+		Whether to create the correction pairs using differences between gradients instead of Hessian-vector products.
+		These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+
+	References
+	----------
+	[1] Byrd, R.H., Hansen, S.L., Nocedal, J. and Singer, Y., 2016. "A stochastic quasi-Newton method for large-scale optimization."
+		SIAM Journal on Optimization, 26(2), pp.1008-1031.
+	[2] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7)
+		Springer Science, 35(67-68), p.7.
+	"""
+
 	def __init__(self, x0, grad_fun, obj_fun=None, hess_vec_fun=None, pred_fun=None, batches_per_epoch=25, step_size=1e-3, decr_step_size="auto",
 		shuffle_data=True, random_state=1, nepochs=25, valset_frac=None, tol=1e-1,
 		callback_epoch=None, callback_iter=None, kwargs_cb={}, verbose=True,
 		mem_size=10, bfgs_upd_freq=20, min_curvature=1e-4, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1):
-		"""
-		SQN optimizer
-
-		Optimizes an empirical (convex) loss function over batches of sample data.
-
-		Parameters
-		----------
-		x0 : array (m, )
-			Initial values of the variables to optimize (refered hereafter as 'x').
-		grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
-			Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
-			Note: output must be one-dimensional and with the same number of entries as 'x',
-			otherwise the Python session might segfault.
-			(The extra keyword arguments are passed in the 'fit' method, not here)
-		obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
-			Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
-			Only used when using a validation set ('valset_frac' not None, or 'valset' passed to fit).
-			Ignored when fitting the data in user-provided batches.
-			(The extra keyword arguments are passed in the 'fit' method, not here)
-		hess_vec_fun : function(x, vec, X, y, sample_weight, **kwargs) --> array(m, )
-			Function that calculates the product of a vector the empirical Hessian at values 'x' on data 'X' and 'y'.
-			Ignored when using 'use_grad_diff=True'.
-			Note: output must be one-dimensional and with the same number of entries as 'x',
-			otherwise the Python session might segfault.
-			These products are calculated on a larger batch than the gradients (given by batch_size * bfgs_upd_freq).
-			(The extra keyword arguments are passed in the 'fit' method, not here)
-		pred_fun : None or function(xopt, X)
-			Prediction function taking as input the optimal 'x' values as obtained by the
-			optimization procedure, and new observation 'X' on which to make predictions.
-			If passed, will have an additional method oLBFGS.predict(X, *args) that calls
-			this function with current values of 'x'.
-		batches_per_epoch : int
-			Number of batches per epoch (each batch will have the same number of observations except for the
-			last one which might be smaller).
-		step_size : float
-			Initial step size to use.
-			(Can be modified after object is already initialized)
-		decr_step_size : str "auto", None, or function(initial_step_size, epoch) -> float
-			Function that determines the step size during each epoch, taking as input the initial
-			step size and the epoch number (starting at zero).
-			If "auto", will use 1/sqrt(iteration).
-			If None, will use constant step size.
-			For 'partial_fit', it will take as input the number of iterations of the algorithm rather than epoch,
-			so it's very recommended to provide a custom function when passing data in user-provided batches.
-			Can be modified after the object has been initialized (oLBFGS.decr_step_size)
-		shuffle_data : bool
-			Whether to shuffle the data at the beginning of each epoch.
-		random_state : int
-			Random seed to use for shuffling data and selecting validation set.
-			The algorithm is deterministic so it's not used for anything else.
-		nepochs : int
-			Number of epochs for which to run the optimization procedure.
-			Might terminate earlier if using a validation set for monitoring.
-		valset_frac : float(0, 1) or None
-			Percent of the data to use as validation set for early stopping.
-			Can also pass a user-provided validation set to 'fit', in which case it will
-			be ignored.
-			If passing None, will run for the number of epochs passed in 'nepochs'.
-		tol : float
-			If the objective function calculated on the validation set decrease by less than
-			'tol' upon completion of an epoch, will terminate the optimization procedure.
-			Ignored when not using a validation set.
-		callback_epoch : None or function*(x, **kwargs)
-			Callback function to call at the end of each epoch
-		callback_iter : None or function*(x, **kwargs)
-			Callback function to call at the end of each iteration
-		kwargs_cb : tuple
-			Additional arguments to pass to 'callback' and 'stop_crit'.
-			(Can be modified after object is already initialized)
-		verbose : bool
-			Whether to print messages when there is some problem during an iteration
-			(e.g. correction pair not meeting minum curvature).
-		mem_size : int
-			Number of correction pairs to store for approximation of Hessian-vector products.
-		bfgs_upd_freq : int
-			Number of iterations (batches) after which to generate a BFGS correction pair.
-		min_curvature : float or None
-			Minimum value of s*y / s*s in order to accept a correction pair.
-		y_reg : float or None
-			regularizer for 'y' vector (gets added y_reg * s)
-		use_grad_diff : bool
-			Whether to create the correction pairs using differences between gradients instead of Hessian-vector products.
-			These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
-		check_nan : bool
-			Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
-			(will also reset BFGS memory).
-		nthreads : int
-			Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-			all of them. Note however that not all the computations can be parallelized.
-
-		References
-		----------
-		[1] Byrd, R.H., Hansen, S.L., Nocedal, J. and Singer, Y., 2016. "A stochastic quasi-Newton method for large-scale optimization."
-			SIAM Journal on Optimization, 26(2), pp.1008-1031.
-		[2] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7)
-			Springer Science, 35(67-68), p.7.
-		"""
 
 		if not use_grad_diff and hess_vec_fun is None:
 			raise ValueError("If not using 'use_grad_diff', must provide function that evaluates Hessian-vector product.")
@@ -617,116 +619,117 @@ class SQN(_StochQN):
 		return self.optimizer._SQN.niter
 
 class adaQN(_StochQN):
+	"""
+	adaQN optimizer
+
+	Optimizes an empirical (possibly non-convex) loss function over batches of sample data.
+
+	Parameters
+	----------
+	x0 : array (m, )
+		Initial values of the variables to optimize (refered hereafter as 'x').
+	grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
+		Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
+		Note: output must be one-dimensional and with the same number of entries as 'x',
+		otherwise the Python session might segfault.
+		(The extra keyword arguments are passed in the 'fit' method, not here)
+	obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
+		Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
+		Will be ignored if passing 'max_incr=None' and no validation set
+		('valset_frac=None', and no 'valset' passed to fit).
+		(The extra keyword arguments are passed in the 'fit' method, not here)
+	pred_fun : None or function(xopt, X)
+		Prediction function taking as input the optimal 'x' values as obtained by the
+		optimization procedure, and new observation 'X' on which to make predictions.
+		If passed, will have an additional method oLBFGS.predict(X, *args) that calls
+		this function with current values of 'x'.
+	batches_per_epoch : int
+		Number of batches per epoch (each batch will have the same number of observations except for the
+		last one which might be smaller).
+	step_size : float
+		Initial step size to use.
+		(Can be modified after object is already initialized)
+	decr_step_size : str "auto", None, or function(initial_step_size, epoch) -> float
+		Function that determines the step size during each epoch, taking as input the initial
+		step size and the epoch number (starting at zero).
+		If "auto", will use 1/sqrt(iteration).
+		If None, will use constant step size.
+		For 'partial_fit', it will take as input the number of iterations of the algorithm rather than epoch,
+		so it's very recommended to provide a custom function when passing data in user-provided batches.
+		Can be modified after the object has been initialized (oLBFGS.decr_step_size)
+	shuffle_data : bool
+		Whether to shuffle the data at the beginning of each epoch.
+	random_state : int
+		Random seed to use for shuffling data and selecting validation set.
+		The algorithm is deterministic so it's not used for anything else.
+	nepochs : int
+		Number of epochs for which to run the optimization procedure.
+		Might terminate earlier if using a validation set for monitoring.
+	valset_frac : float(0, 1) or None
+		Percent of the data to use as validation set for early stopping.
+		Can also pass a user-provided validation set to 'fit', in which case it will
+		be ignored.
+		If passing None, will run for the number of epochs passed in 'nepochs'.
+	tol : float
+		If the objective function calculated on the validation set decrease by less than
+		'tol' upon completion of an epoch, will terminate the optimization procedure.
+		Ignored when not using a validation set.
+	callback_epoch : None or function*(x, **kwargs)
+		Callback function to call at the end of each epoch
+	callback_iter : None or function*(x, **kwargs)
+		Callback function to call at the end of each iteration
+	kwargs_cb : tuple
+		Additional arguments to pass to 'callback' and 'stop_crit'.
+		(Can be modified after object is already initialized)
+	verbose : bool
+		Whether to print messages when there is some problem during an iteration
+		(e.g. correction pair not meeting minum curvature).
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	fisher_size : int or None
+		Number of gradients to store for calculation of the empirical Fisher product with gradients.
+		If passing 'None', will force 'use_grad_diff' to 'True'.
+	bfgs_upd_freq : int
+		Number of iterations (batches) after which to generate a BFGS correction pair.
+	max_incr : float or None
+		Maximum ratio of function values in the validation set under the average values of 'x' during current epoch
+		vs. previous epoch. If the ratio is above this threshold, the BFGS and Fisher memories will be reset, and 'x'
+		values reverted to their previous average.
+		If not using a validation set, will take a longer batch for function evaluations (same as used for gradients
+		when using 'use_grad_diff=True').
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	y_reg : float or None
+		regularizer for 'y' vector (gets added y_reg * s)
+	scal_reg : float
+		Regularization parameter to use in the denominator for AdaGrad and RMSProp scaling.
+	rmsprop_weight : float(0,1) or None
+		If not 'None', will use RMSProp formula instead of AdaGrad for approximated inverse-Hessian initialization.
+		(Recommended to use lower initial step size + passing 'decr_step_size')
+	use_grad_diff : bool
+		Whether to create the correction pairs using differences between gradients instead of Fisher matrix.
+		These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
+		If 'True', fisher_size will be set to None, and empirical Fisher matrix will not be used.
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+
+	References
+	----------
+	[1] Keskar, N.S. and Berahas, A.S., 2016, September. "adaQN: An Adaptive Quasi-Newton Algorithm for Training RNNs."
+		In Joint European Conference on Machine Learning and Knowledge Discovery in Databases (pp. 1-16). Springer, Cham.
+	[2] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7)
+		Springer Science, 35(67-68), p.7.
+	"""
+		
 	def __init__(self, x0, grad_fun, obj_fun=None, pred_fun=None, batches_per_epoch=25, step_size=1e-1, decr_step_size=None,
 		shuffle_data=True, random_state=1, nepochs=25, valset_frac=None, tol=1e-1,
 		callback_epoch=None, callback_iter=None, kwargs_cb={}, verbose=True,
 		mem_size=10, fisher_size=100, bfgs_upd_freq=20, max_incr=1.01, min_curvature=1e-4, y_reg=None,
 		scal_reg=1e-4, rmsprop_weight=None, use_grad_diff=False, check_nan=True, nthreads=-1):
-		"""
-		adaQN optimizer
-
-		Optimizes an empirical (possibly non-convex) loss function over batches of sample data.
-
-		Parameters
-		----------
-		x0 : array (m, )
-			Initial values of the variables to optimize (refered hereafter as 'x').
-		grad_fun : function(x, X, y, sample_weight, **kwargs) --> array(m, )
-			Function that calculates the empirical gradient at values 'x' on data 'X' and 'y'.
-			Note: output must be one-dimensional and with the same number of entries as 'x',
-			otherwise the Python session might segfault.
-			(The extra keyword arguments are passed in the 'fit' method, not here)
-		obj_fun : function(x, X, y, sample_weight, **kwargs) --> float
-			Function that calculates the empirical objective value at values 'x' on data 'X' and 'y'.
-			Will be ignored if passing 'max_incr=None' and no validation set
-			('valset_frac=None', and no 'valset' passed to fit).
-			(The extra keyword arguments are passed in the 'fit' method, not here)
-		pred_fun : None or function(xopt, X)
-			Prediction function taking as input the optimal 'x' values as obtained by the
-			optimization procedure, and new observation 'X' on which to make predictions.
-			If passed, will have an additional method oLBFGS.predict(X, *args) that calls
-			this function with current values of 'x'.
-		batches_per_epoch : int
-			Number of batches per epoch (each batch will have the same number of observations except for the
-			last one which might be smaller).
-		step_size : float
-			Initial step size to use.
-			(Can be modified after object is already initialized)
-		decr_step_size : str "auto", None, or function(initial_step_size, epoch) -> float
-			Function that determines the step size during each epoch, taking as input the initial
-			step size and the epoch number (starting at zero).
-			If "auto", will use 1/sqrt(iteration).
-			If None, will use constant step size.
-			For 'partial_fit', it will take as input the number of iterations of the algorithm rather than epoch,
-			so it's very recommended to provide a custom function when passing data in user-provided batches.
-			Can be modified after the object has been initialized (oLBFGS.decr_step_size)
-		shuffle_data : bool
-			Whether to shuffle the data at the beginning of each epoch.
-		random_state : int
-			Random seed to use for shuffling data and selecting validation set.
-			The algorithm is deterministic so it's not used for anything else.
-		nepochs : int
-			Number of epochs for which to run the optimization procedure.
-			Might terminate earlier if using a validation set for monitoring.
-		valset_frac : float(0, 1) or None
-			Percent of the data to use as validation set for early stopping.
-			Can also pass a user-provided validation set to 'fit', in which case it will
-			be ignored.
-			If passing None, will run for the number of epochs passed in 'nepochs'.
-		tol : float
-			If the objective function calculated on the validation set decrease by less than
-			'tol' upon completion of an epoch, will terminate the optimization procedure.
-			Ignored when not using a validation set.
-		callback_epoch : None or function*(x, **kwargs)
-			Callback function to call at the end of each epoch
-		callback_iter : None or function*(x, **kwargs)
-			Callback function to call at the end of each iteration
-		kwargs_cb : tuple
-			Additional arguments to pass to 'callback' and 'stop_crit'.
-			(Can be modified after object is already initialized)
-		verbose : bool
-			Whether to print messages when there is some problem during an iteration
-			(e.g. correction pair not meeting minum curvature).
-		mem_size : int
-			Number of correction pairs to store for approximation of Hessian-vector products.
-		fisher_size : int or None
-			Number of gradients to store for calculation of the empirical Fisher product with gradients.
-			If passing 'None', will force 'use_grad_diff' to 'True'.
-		bfgs_upd_freq : int
-			Number of iterations (batches) after which to generate a BFGS correction pair.
-		max_incr : float or None
-			Maximum ratio of function values in the validation set under the average values of 'x' during current epoch
-			vs. previous epoch. If the ratio is above this threshold, the BFGS and Fisher memories will be reset, and 'x'
-			values reverted to their previous average.
-			If not using a validation set, will take a longer batch for function evaluations (same as used for gradients
-			when using 'use_grad_diff=True').
-		min_curvature : float or None
-			Minimum value of s*y / s*s in order to accept a correction pair.
-		y_reg : float or None
-			regularizer for 'y' vector (gets added y_reg * s)
-		scal_reg : float
-			Regularization parameter to use in the denominator for AdaGrad and RMSProp scaling.
-		rmsprop_weight : float(0,1) or None
-			If not 'None', will use RMSProp formula instead of AdaGrad for approximated inverse-Hessian initialization.
-			(Recommended to use lower initial step size + passing 'decr_step_size')
-		use_grad_diff : bool
-			Whether to create the correction pairs using differences between gradients instead of Fisher matrix.
-			These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
-			If 'True', fisher_size will be set to None, and empirical Fisher matrix will not be used.
-		check_nan : bool
-			Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
-			(will also reset BFGS memory).
-		nthreads : int
-			Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-			all of them. Note however that not all the computations can be parallelized.
-
-		References
-		----------
-		[1] Keskar, N.S. and Berahas, A.S., 2016, September. "adaQN: An Adaptive Quasi-Newton Algorithm for Training RNNs."
-			In Joint European Conference on Machine Learning and Knowledge Discovery in Databases (pp. 1-16). Springer, Cham.
-		[2] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7)
-			Springer Science, 35(67-68), p.7.
-		"""
 
 		if max_incr is not None:
 			if obj_fun is None:
