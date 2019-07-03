@@ -105,10 +105,10 @@ from stochqn import oLBFGS
 from sklearn.linear_model.logistic import _logistic_loss_and_grad
 from sklearn.datasets import load_digits
 
-def obj_fun(w, X, y, sample_weights=None, reg_param=1.0):
-	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weights)[0]
-def grad_fun(w, X, y, sample_weights=None, reg_param=1.0):
-	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weights)[1]
+def obj_fun(w, X, y, sample_weight=None, reg_param=1.0):
+	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weight)[0]
+def grad_fun(w, X, y, sample_weight=None, reg_param=1.0):
+	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weight)[1]
 def pred_fun(w, X):
 	return 1 / (1 + np.exp(-X.dot(w[:X.shape[1]]) - w[-1]))
 
@@ -120,8 +120,8 @@ np.random.seed(1)
 w0 = np.random.normal(size = X.shape[1] + 1)
 
 optimizer = oLBFGS(x0=w0, grad_fun=grad_fun, obj_fun=obj_fun, pred_fun=pred_fun, step_size=1e-5)
-optimizer.fit(X, y, sample_weights=None, additional_kwargs={"reg_param" : 1.0})
-optimizer.partial_fit(X[:100], y[:100], sample_weights=None, additional_kwargs={"reg_param" : 1.0})
+optimizer.fit(X, y, sample_weight=None, additional_kwargs={"reg_param" : 1.0})
+optimizer.partial_fit(X[:100], y[:100], sample_weight=None, additional_kwargs={"reg_param" : 1.0})
 optimizer.predict(X)
 ```
 Mode 2:
@@ -162,10 +162,10 @@ from stochqn import oLBFGS_free
 from sklearn.linear_model.logistic import _logistic_loss_and_grad
 from sklearn.datasets import load_digits
 
-def obj_fun(w, X, y, sample_weights=None, reg_param=1.0):
-	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weights)[0]
-def grad_fun(w, X, y, sample_weights=None, reg_param=1.0):
-	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weights)[1]
+def obj_fun(w, X, y, sample_weight=None, reg_param=1.0):
+	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weight)[0]
+def grad_fun(w, X, y, sample_weight=None, reg_param=1.0):
+	return _logistic_loss_and_grad(w, X, y, reg_param, sample_weight)[1]
 
 digits = load_digits()
 X = digits["data"]

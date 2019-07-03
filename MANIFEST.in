@@ -1,4 +1,3 @@
 include include/stochqn.h
 include src/stochqn.c
-include src/rtd_mock.h
 global-include *.pyx
