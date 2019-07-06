@@ -107,7 +107,7 @@ extern "C" {
 /*	OpenMP < 3.0 (e.g. MSVC as of 2019) does not support parallel for's with unsigned iterators,
 	and does not support declaring the iterator type in the loop itself */
 #ifdef _OPENMP
-	#if _OPENMP < 20080101 /* OpenMP < 3.0 */
+	#if _OPENMP < 200801 /* OpenMP < 3.0 */
 		#define size_t_for 
 	#else
 		#define size_t_for size_t
@@ -142,7 +142,7 @@ static inline void copy_arr(const double src[restrict], double dest[restrict], c
 	/* Note: don't use BLAS dcopy as it's actually much slower */
 	#if defined(_OPENMP)
 
-	#if (_OPENMP < 20080101) /* OpenMP < 3.0 */
+	#if (_OPENMP < 200801) /* OpenMP < 3.0 */
 	int i;
 	#endif
 	int chunk_size = n / nthreads;
@@ -166,7 +166,7 @@ static inline void set_to_zero(double arr[], const int n, const int nthreads)
 
 	#if defined(_OPENMP)
 
-	#if (_OPENMP < 20080101) /* OpenMP < 3.0 */
+	#if (_OPENMP < 200801) /* OpenMP < 3.0 */
 	int i;
 	#endif
 	int chunk_size = n / nthreads;
@@ -187,7 +187,7 @@ static inline void set_to_zero(double arr[], const int n, const int nthreads)
 
 static inline void multiply_elemwise(double inout[restrict], const double other[restrict], const int n, const int nthreads)
 {
-	#if defined(_OPENMP) && (_OPENMP < 20080101) /* OpenMP < 3.0 */
+	#if defined(_OPENMP) && (_OPENMP < 200801) /* OpenMP < 3.0 */
 	int i;
 	int n_szt = n;
 	#else
@@ -200,7 +200,7 @@ static inline void multiply_elemwise(double inout[restrict], const double other[
 
 static inline void difference_elemwise(double out[restrict], const double later[restrict], const double earlier[restrict], const int n, const int nthreads)
 {
-	#if defined(_OPENMP) && (_OPENMP < 20080101) /* OpenMP < 3.0 */
+	#if defined(_OPENMP) && (_OPENMP < 200801) /* OpenMP < 3.0 */
 	int i;
 	int n_szt = n;
 	#else
@@ -217,7 +217,7 @@ static inline int check_inf_nan(const double arr[], const int n, const int nthre
 	size_t n_szt = (size_t) n;
 	int is_wrong = 0;
 
-	#if defined(_OPENMP) & (_OPENMP > 20130501) /* OpenMP >= 4.0 */
+	#if defined(_OPENMP) & (_OPENMP > 201305) /* OpenMP >= 4.0 */
 	/*	Note1: in most cases the array should not have invalid elements
 		Note2: 'omp cancel' is disabled by default through an environmental variable,
 				and it will ignore modifications of it within the same calling program,
@@ -252,7 +252,7 @@ static inline void add_to_sum(const double new_values[restrict], double sum_arr[
 {
 	/* Note: daxpy in MKL is actually slower than this */
 
-	#if defined(_OPENMP) && (_OPENMP < 20080101) /* OpenMP < 3.0 */
+	#if defined(_OPENMP) && (_OPENMP < 200801) /* OpenMP < 3.0 */
 	int i;
 	int n_szt = n;
 	#else
@@ -699,7 +699,7 @@ static inline void approx_inv_hess_grad(double grad[], int n, double H0[], doubl
 */
 static inline void update_sum_sq(double grad[restrict], double grad_sum_sq[restrict], double rmsprop_weight, int n, int nthreads)
 {
-	#if defined(_OPENMP) && (_OPENMP < 20080101)
+	#if defined(_OPENMP) && (_OPENMP < 200801)
 	int n_szt = n;
 	int i;
 	#else
@@ -740,7 +740,7 @@ static inline void diag_rescal(double direction[restrict], double grad[restrict]
 	int n, double scal_reg, double rmsprop_weight, int nthreads)
 {
 	update_sum_sq(grad, grad_sum_sq, rmsprop_weight, n, nthreads);
-	#if defined(_OPENMP) && (_OPENMP < 20080101)
+	#if defined(_OPENMP) && (_OPENMP < 200801)
 	int i;
 	int n_szt = n;
 	#else
