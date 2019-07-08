@@ -456,7 +456,7 @@ workspace_oLBFGS* initialize_oLBFGS(const int n, const size_t mem_size, const do
 	out->check_nan = check_nan;
 	out->nthreads = nthreads;
 	out->n = n;
-	if ( check_oLBFGS_nonnull(out) ) {dealloc_oLBFGS(out); exit(1);}
+	if ( check_oLBFGS_nonnull(out) ) {dealloc_oLBFGS(out); return NULL;}
 	return out;
 }
 
@@ -481,7 +481,7 @@ workspace_SQN* initialize_SQN(const int n, const size_t mem_size, const size_t b
 	out->check_nan = check_nan;
 	out->nthreads = nthreads;
 	out->n = n;
-	if ( check_SQN_nonnull(out) ) {dealloc_SQN(out); exit(1);}
+	if ( check_SQN_nonnull(out) ) {dealloc_SQN(out); return NULL;}
 	return out;
 }
 
@@ -522,7 +522,7 @@ workspace_adaQN* initialize_adaQN(const int n, const size_t mem_size, const size
 	out->check_nan = check_nan;
 	out->nthreads = nthreads;
 	out->n = n;
-	if ( check_adaQN_nonnull(out) ){dealloc_adaQN(out); exit(1);}
+	if ( check_adaQN_nonnull(out) ){dealloc_adaQN(out); return NULL;}
 	return out;
 }
 
