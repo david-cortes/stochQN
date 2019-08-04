@@ -79,6 +79,7 @@ int main()
 	size_t mem_size = 5;
 	size_t bfgs_upd_freq = 3;
 	double min_curvature = 0;
+	double y_reg = 1e-8;
 	int use_grad_diff = 0;
 	int check_nan = 1;
 
@@ -96,7 +97,7 @@ int main()
 	printf("Initial variable values:  ");
 	print_arr(x, n);
 
-	workspace_SQN* SQN = initialize_SQN(n, mem_size, bfgs_upd_freq, min_curvature, use_grad_diff, check_nan, nthreads);
+	workspace_SQN* SQN = initialize_SQN(n, mem_size, bfgs_upd_freq, min_curvature, use_grad_diff, y_reg, check_nan, nthreads);
 	run_SQN(step_size, x, grad, hess_vec, &req, &req_vec, &task, SQN, &iter_info);
 
 	while (SQN->niter < 200)
