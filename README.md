@@ -6,7 +6,7 @@ This package contains implementations of the following stochastic limited-memory
 * oLBFGS (see reference [4])
 * Variations of these by e.g. using gradient differences instead of Hessian-vector products or empirical Fisher matrix (see reference [1])
 
-Implementations are in C with a Python interface (R interface to come in the future). They are designed in a memory-conscious way so as to avoid unnecessary copying, and introduce parallelization when advantageous.
+Implementations are in C with a Python interface (R interface to come in the future) and C++ wrapper (with RAII-classes). They are designed in a memory-conscious way so as to avoid unnecessary copying, and introduce parallelization when advantageous.
 
 ## Optimizers
 
@@ -58,7 +58,7 @@ Comparison to first-order methods in BibTeX dataset (Logistic Regression with mu
 
 ## Installation
 
-Python:
+* Python:
 ```pip install stochqn```
 
 In case the following error is encountered in Windows systems:
@@ -74,7 +74,7 @@ cd stochQN
 python setup.py install
 ```
 
-C:
+* C and C++:
 ```
 git clone https://www.github.com/david-cortes/stochQN.git
 cd stochQN
@@ -87,14 +87,14 @@ make
 sudo make install
 sudo ldconfig
 ```
-Linkage is then done with `-lstochqn`.
+Linkage is then done with `-lstochqn` (note that both the C and C++ version use the same `.h` header, and the C++ classes are just a wrapper over the C objects and functions, which are conditionally defined in the header).
 
 ## Usage
 
 Optimizers can be used in three ways:
 1. (Python) As a scikit-learn-like API in which you supply a starting point `x0`, gradient evaluation function and other functions as required (objective function and/or Hessian-vector function, depending on the optimizer and parameters used), which are then fit to data (X, y, sample_weights) passed in methods `fit` and/or `partial_fit`.
 2. (Python) As a Tensorflow external optimizer.
-3. (Python, C) As a free-mode optimizer that is only interacted with by running a function (method in Python) that modifies the variables in-place and returns a request with the next calculation required by the optimizer (gradient in next batch, gradient in same batch, objective in validation set, Hessian-vector in large batch, gradient in large batch), along with the variable values on which to calculate them, the results of which are then supplied to the optimizer and the optimization function run again, repeating until convergence.
+3. (Python, C, C++) As a free-mode optimizer that is only interacted with by running a function (method in Python and C++) that modifies the variables in-place and returns a request with the next calculation required by the optimizer (gradient in next batch, gradient in same batch, objective in validation set, Hessian-vector in large batch, gradient in large batch), along with the variable values on which to calculate them, the results of which are then supplied to the optimizer and the optimization function run again, repeating until convergence.
 
 Also included is a logistic regression module (`StochasticLogisticRegression`) with the same API as scikit-learn's.
 
@@ -195,11 +195,13 @@ for i in range(20):
 
 For a longer example see the [IPython example notebook](https://www.github.com/david-cortes/stochQN/blob/master/example/example_stochqn.ipynb) or the C example file [c_rosen.c](https://www.github.com/david-cortes/stochQN/blob/master/example/c_rosen.c).
 
+For usage in C see file [c_rosen.c](https://www.github.com/david-cortes/stochQN/blob/master/example/c_rosen.c). For usage in C++ see [cpp_rosen.cpp](https://www.github.com/david-cortes/stochQN/blob/master/example/cpp_rosen.cpp).
+
 ## Documentation
 
 Python documentation is available at [ReadTheDocs](https://stochqn.readthedocs.io/en/latest/), but unfortunately, not everything there is documented - missing parts such as class constructors are still available as docstring (e.g. you can try `help(stochqn.adaQN)`).
 
-C documentation is available in the header file [include/stochqn.h](https://www.github.com/david-cortes/stochQN/blob/master/include/stochqn.h).
+C/C++ documentation is available in the header file [include/stochqn.h](https://www.github.com/david-cortes/stochQN/blob/master/include/stochqn.h).
 
 ## Known issues
 

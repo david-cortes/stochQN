@@ -56,6 +56,9 @@
 
 /* ====== Note: Go straight towards the end to find the function prototypes ====== */
 
+#ifndef STOCHQN_INCLUDE
+#define STOCHQN_INCLUDE 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -278,6 +281,9 @@ typedef enum iter_status {did_not_update_x = 0, updated_x = 1, received_invalid_
 	which is not always the same as the 'x' variables, and then the optimization should should be run again
 	with everything the same except for the values of the calculation that was request.
 
+	A C++ version using classes with RAII principles is also provided. The parameters are the same as
+	for the C version.
+
 	Step size should be set by the user for each iteration (it's not modified internally). adaQN requires
 	larger step sizes than the other methods.
 
@@ -327,7 +333,7 @@ typedef enum iter_status {did_not_update_x = 0, updated_x = 1, received_invalid_
 		variables to optimize
 	
 	f (adaQN w. 'max_incr')	(in) : double
-		pointer to function values
+		objective function value, evaluated at the requested values
 		(ignored for oLBFGS, SQN, and adaQN wo. 'max_incr')
 	
 	grad (in) : double[m]
@@ -363,3 +369,129 @@ int run_adaQN(double step_size, double x[], double f, double grad[], double **re
 #ifdef __cplusplus
 }
 #endif
+
+
+/*	C++ 'safe' objects - these follow RAII principles
+	
+	API is the same as for the C version, but variables and pointers are stored in a class.
+	See the documentation above for more details, or the (straightforward) code for what
+	they do.
+*/
+#ifdef __cplusplus
+#include <new>
+
+class oLBFGS
+{
+public:
+	workspace_oLBFGS *workspace;
+	task_enum task;
+	info_enum info;
+	iter_status status;
+	double *req;
+
+	oLBFGS(const int n, const size_t mem_size = 10, const double hess_init = 0, const double y_reg = 0,
+		   const double min_curvature = 0, const int check_nan = 1, const int nthreads = 1)
+	{
+		this->workspace = initialize_oLBFGS(n, mem_size, hess_init, y_reg,
+											min_curvature, check_nan, nthreads);
+		if (this->workspace == NULL) throw std::bad_alloc();
+		this->task   = calc_grad;
+		this->status = did_not_update_x;
+		this->info   = no_problems_encountered;
+	}
+	~oLBFGS() { if (this->workspace != NULL) dealloc_oLBFGS(this->workspace); }
+
+
+	iter_status run(double step_size, double x[], double grad[])
+	{
+		return (iter_status) run_oLBFGS(step_size, x, grad, &this->req, &this->task,
+										this->workspace, &this->info);
+	}
+	task_enum get_task()      { return this->task;             }
+	info_enum get_iter_info() { return this->info;             }
+	size_t    get_n_iter()    { return this->workspace->niter; }
+	double*   get_req()       { return this->req;              }
+};
+
+
+class SQN
+{
+public:
+	workspace_SQN *workspace;
+	task_enum task;
+	info_enum info;
+	iter_status status;
+	double *req;
+	double *req_vec;
+
+	SQN(const int n, const size_t mem_size = 10, const size_t bfgs_upd_freq = 10,
+		const double min_curvature = 1e-4, const int use_grad_diff = 0, const double y_reg = 0,
+		const int check_nan = 1, const int nthreads = 1)
+	{
+		this->workspace = initialize_SQN(n, mem_size, bfgs_upd_freq, min_curvature, use_grad_diff,
+										 y_reg, check_nan, nthreads);
+		if (this->workspace == NULL) throw std::bad_alloc();
+		this->task   = calc_grad;
+		this->status = did_not_update_x;
+		this->info   = no_problems_encountered;
+	}
+
+	~SQN() { if (this->workspace != NULL) dealloc_SQN(this->workspace); }
+
+	iter_status run(double step_size, double x[], double grad[], double hess_vec[])
+	{
+		return (iter_status) run_SQN(step_size, x, grad, hess_vec, &this->req, &this->req_vec,
+									 &this->task, this->workspace, &this->info);
+	}
+
+
+	task_enum get_task()      { return this->task;             }
+	info_enum get_iter_info() { return this->info;             }
+	size_t    get_n_iter()    { return this->workspace->niter; }
+	double*   get_req()       { return this->req;              }
+	double*   get_req_vec()   { return this->req_vec;          }
+
+};
+
+class adaQN
+{
+public:
+	workspace_adaQN *workspace;
+	task_enum task;
+	info_enum info;
+	iter_status status;
+	double *req;
+
+	adaQN(const int n, const size_t mem_size = 10, const size_t fisher_size = 100,
+		  const size_t bfgs_upd_freq = 10, const double max_incr = 1.01, const double min_curvature = 1e-4,
+		  const double scal_reg = 1e-4, const double rmsprop_weight = 0.9, const int use_grad_diff = 0,
+		  const double y_reg = 0, const int check_nan = 1, const int nthreads = 1)
+	{
+		this->workspace = initialize_adaQN(n, mem_size, fisher_size, bfgs_upd_freq,
+										   max_incr, min_curvature, scal_reg, rmsprop_weight,
+										   use_grad_diff, y_reg, check_nan, nthreads);
+		if (this->workspace == NULL) throw std::bad_alloc();
+		this->task   = calc_grad;
+		this->status = did_not_update_x;
+		this->info   = no_problems_encountered;
+	}
+
+	~adaQN() { if (this->workspace != NULL) dealloc_adaQN(this->workspace); }
+
+	iter_status run(double step_size, double x[], double f, double grad[])
+	{
+		return (iter_status) run_adaQN(step_size, x, f, grad, &this->req,
+									   &this->task, this->workspace, &this->info);
+	}
+
+	task_enum get_task()      { return this->task;             }
+	info_enum get_iter_info() { return this->info;             }
+	size_t    get_n_iter()    { return this->workspace->niter; }
+	double*   get_req()       { return this->req;              }
+};
+
+
+#endif /* __cplusplus */
+
+
+#endif /* STOCHQN_INCLUDE */
