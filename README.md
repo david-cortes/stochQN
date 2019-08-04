@@ -10,7 +10,7 @@ Implementations are in C with a Python interface (R interface to come in the fut
 
 ## Optimizers
 
-Stochastic quasi-Newton methods minimize a differentiable smooth function in expectation by progressively fitting the function/model to batches of sample data, on which expected gradients and other values are calculated. They achieve converge with fewer updates/batches than simple gradient descent or other first-order optimization techniques such as AdaGrad, at the expense of extra memory requirements and extra calculations per batch.
+Stochastic quasi-Newton methods minimize a differentiable smooth function in expectation by progressively fitting the function/model to batches of sample data, on which expected gradients and other values are calculated. They converge with fewer updates/batches than simple gradient descent or other first-order optimization techniques such as AdaGrad, at the expense of extra memory requirements and extra calculations per batch.
 
 In streaming or online optimization scenarios, they achieve better optima at the same amount of data passed through, making better use of the observations that are given.
 
