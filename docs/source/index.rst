@@ -26,11 +26,6 @@ Welcome to stochqn's documentation!
    	:undoc-members:
    	:inherited-members:
 
-.. automodule:: stochqn._wrapper
-	:members:
-   	:undoc-members:
-   	:inherited-members:
-
 
 Indices and tables
 ==================
