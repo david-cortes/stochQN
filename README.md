@@ -193,7 +193,7 @@ for i in range(20):
 ```
 
 
-For a longer example see the [IPython example notebook](https://www.github.com/david-cortes/stochQN/blob/master/example/example_stochqn.ipynb) or the C example file [c_rosen.c](https://www.github.com/david-cortes/stochQN/blob/master/example/c_rosen.c).
+For a longer example see the [IPython example notebook](https://www.github.com/david-cortes/stochQN/blob/master/example/example_stochqn.ipynb).
 
 For usage in C see file [c_rosen.c](https://www.github.com/david-cortes/stochQN/blob/master/example/c_rosen.c). For usage in C++ see [cpp_rosen.cpp](https://www.github.com/david-cortes/stochQN/blob/master/example/cpp_rosen.cpp).
 
