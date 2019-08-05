@@ -1,7 +1,24 @@
 import numpy as np, pandas as pd, warnings
 from sklearn.model_selection import train_test_split
-from stochqn._wrapper import oLBFGS_free, SQN_free, adaQN_free
 from scipy.sparse import isspmatrix, isspmatrix_csr, vstack, csr_matrix
+import ctypes, multiprocessing
+from ._wrapper import _py_run_oLBFGS, py_run_SQN, py_run_adaQN
+
+### Tasks will be outputed from python as strings rather than enums
+task_dct = {
+	101 : 'calc_grad',
+	102 : 'calc_grad_same_batch',
+	103 : 'calc_grad_big_batch',
+	104 : 'calc_hess_vec',
+	105 : 'calc_fun_val_batch'
+}
+
+info_dct = {
+	201 : 'func_increased',
+	202 : 'curvature_too_small',
+	203 : 'search_direction_was_nan',
+	200 : 'no_problems_encountered'
+}
 
 #### Pre-defined step size sequences
 def _step_size_sqrt(initial_step_size, iteration_num):
@@ -750,3 +767,542 @@ class adaQN(_StochQN):
 	def niter(self):
 		return self.optimizer._adaQN.niter
  
+
+ #############################
+
+
+class _BFGS_mem_holder:
+	def __init__(self, mem_size, n, min_curvature, y_reg, upd_freq):
+		self.s_mem = np.empty((n * mem_size), dtype = ctypes.c_double)
+		self.y_mem = np.empty((n * mem_size), dtype = ctypes.c_double)
+		self.buffer_rho = np.empty(mem_size, dtype = ctypes.c_double)
+		self.buffer_alpha = np.empty(mem_size, dtype = ctypes.c_double)
+		if min_curvature > 0:
+			self.s_bak = np.empty(n, dtype = ctypes.c_double)
+			self.y_bak = np.empty(n, dtype = ctypes.c_double)
+		else:
+			self.s_bak = np.empty(1, dtype = ctypes.c_double)
+			self.y_bak = np.empty(1, dtype = ctypes.c_double)
+		self.mem_size = ctypes.c_size_t(mem_size).value
+		self.mem_used = ctypes.c_size_t(0).value
+		self.mem_st_ix = ctypes.c_size_t(0).value
+		self.upd_freq = ctypes.c_size_t(upd_freq).value
+		self.y_reg = ctypes.c_double(y_reg).value
+		self.min_curvature = ctypes.c_double(min_curvature).value
+
+class _Fisher_mem_holder:
+	def __init__(self, mem_size, n):
+		self.F = np.empty((n * mem_size), dtype = ctypes.c_double)
+		self.buffer_y = np.empty(mem_size, dtype = ctypes.c_double)
+		self.mem_size = ctypes.c_size_t(mem_size).value
+		self.mem_used = ctypes.c_size_t(0).value
+		self.mem_st_ix = ctypes.c_size_t(0).value
+
+
+class _oLBFGS_holder:
+	def __init__(self, n, mem_size, hess_init, y_reg, min_curvature, check_nan, nthreads):
+		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, 1)
+		self.grad_prev = np.empty(n, dtype = ctypes.c_double)
+		self.hess_init = ctypes.c_double(hess_init).value
+		self.niter = ctypes.c_int(0).value
+		self.section = ctypes.c_int(0).value
+		self.nthreads = ctypes.c_int(nthreads).value
+		self.check_nan = ctypes.c_int(bool(check_nan)).value
+		self.n = ctypes.c_int(n).value
+
+
+class _SQN_holder:
+	def __init__(self, n, mem_size, bfgs_upd_freq, min_curvature,
+				 use_grad_diff, y_reg, check_nan, nthreads):
+		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, bfgs_upd_freq)
+		if use_grad_diff:
+			self.grad_prev = np.empty(n, dtype = ctypes.c_double)
+		else:
+			self.grad_prev = np.empty(1, dtype = ctypes.c_double)
+		self.x_sum = np.zeros(n, dtype = ctypes.c_double)
+		self.x_avg_prev = np.empty(n, dtype = ctypes.c_double)
+		self.use_grad_diff = ctypes.c_int(use_grad_diff).value
+		self.niter = ctypes.c_int(0).value
+		self.section = ctypes.c_int(0).value
+		self.nthreads = ctypes.c_int(nthreads).value
+		self.check_nan = ctypes.c_int(bool(check_nan)).value
+		self.n = ctypes.c_int(n).value
+
+class _adaQN_holder:
+	def __init__(self, n, mem_size, fisher_size, bfgs_upd_freq,
+				 max_incr, min_curvature, scal_reg, rmsprop_weight,
+				 use_grad_diff, y_reg, check_nan, nthreads):
+		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, bfgs_upd_freq)
+		if use_grad_diff:
+			self.Fisher_mem = _Fisher_mem_holder(1, 1)
+			self.grad_prev = np.empty(n, dtype = ctypes.c_double)
+		else:
+			self.Fisher_mem = _Fisher_mem_holder(fisher_size, n)
+			self.grad_prev = np.empty(1, dtype = ctypes.c_double)
+
+		self.H0 = np.empty(n, dtype = ctypes.c_double)
+		self.x_sum = np.zeros(n, dtype = ctypes.c_double)
+		self.x_avg_prev = np.empty(n, dtype = ctypes.c_double)
+		self.grad_sum_sq = np.zeros(n, dtype = ctypes.c_double)
+
+		self.max_incr = ctypes.c_double(max_incr).value
+		self.scal_reg = ctypes.c_double(scal_reg).value
+		self.rmsprop_weight = ctypes.c_double(rmsprop_weight).value
+		self.use_grad_diff = ctypes.c_int(use_grad_diff).value
+		self.f_prev = ctypes.c_double(0).value
+		self.niter = ctypes.c_int(0).value
+		self.section = ctypes.c_int(0).value
+		self.nthreads = ctypes.c_int(nthreads).value
+		self.check_nan = ctypes.c_int(bool(check_nan)).value
+		self.n = ctypes.c_int(n).value
+
+#####################
+class _StochQN_free:
+	def _take_common_inputs(self, mem_size, min_curvature, y_reg, check_nan, nthreads):
+		assert mem_size > 0
+		assert isinstance(mem_size, int)
+
+		if min_curvature is not None:
+			assert min_curvature > 0
+		else:
+			min_curvature = 0
+		if y_reg is not None:
+			assert y_reg > 0
+		else:
+			y_reg = 0
+
+		if nthreads is None:
+			nthreads = 1
+		if nthreads <= 0:
+			nthreads = multiprocessing.cpu_count()
+		assert isinstance(nthreads, int)
+		assert nthreads >= 1
+		self.mem_size = mem_size
+		self.min_curvature = min_curvature
+		self.y_reg = y_reg
+		self.check_nan = bool(check_nan)
+		self.nthreads = nthreads
+
+	def update_gradient(self, gradient):
+		"""
+		Pass requested gradient to optimizer
+
+		Parameters
+		----------
+		gradient : array(m, )
+			Gradient calculated as requested, evaluated at values given in "requested_on",
+			calcualted either in a regular batch (task = "calc_grad"), same batch as before
+			(task = "calc_grad_same_batch" - oLBFGS only), or a larger batch of data (task = "calc_grad_big_batch"), perhaps
+			including all the cases from the last such calculation (SQN and adaQN with 'use_grad_diff=True').
+		"""
+		self.gradient[:] = gradient.astype(ctypes.c_double).reshape(-1)
+
+
+class oLBFGS_free(_StochQN_free):
+	"""
+	oLBFGS optimizer (free mode)
+
+	Optimizes an empirical (convex) loss function over batches of sample data. Compared to
+	class 'oLBFGS', this version lets the user do all the calculations from the outside, only
+	interacting with the object by mode of a function that returns a request type and is fed the
+	required calculation through a method 'update_gradient'.
+
+	Order in which requests are made:
+
+	========== loop ===========
+	* calc_grad
+	* calc_grad_same_batch		(might skip if using check_nan)
+	===========================
+
+	Parameters
+	----------
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	hess_init : float or None
+		value to which to initialize the diagonal of H0.
+		If passing 0, will use the same initializion as for SQN (s_last*y_last / y_last*y_last).
+	y_reg : float or None
+		regularizer for 'y' vector (gets added y_reg * s)
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+	"""
+	def __init__(self, mem_size=10, hess_init=None, min_curvature=1e-4, y_reg=None, check_nan=True, nthreads=-1):
+		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
+		if hess_init is not None:
+			assert hess_init > 0
+		else:
+			hess_init = 0
+		self.hess_init = hess_init
+		self.initialized = False
+
+
+	def _initialize(self, n):
+		self._oLBFGS = _oLBFGS_holder(n, self.mem_size, self.hess_init, self.y_reg, self.min_curvature, self.check_nan, self.nthreads)
+		self.gradient = np.empty(n, dtype=ctypes.c_double)
+		self.initialized = True
+
+	def run_optimizer(self, x, step_size):
+		"""
+		Continue optimization process after supplying the calculation requested from the last run
+
+		Continue the optimization process from where it was left since the last calculation was
+		requested. Will internally do all the updates that are possible until the moment some
+		calculation of function/gradient/hessian-vector is required.
+
+		Note
+		----
+		The first time this is run, no calculation needs to be supplied.
+
+		Parameters
+		----------
+		x : array(m, )
+			Current values of the variables. Will be modified in-place.
+			Do NOT modify the values between runs.
+		step_size : float
+			Step size for the next update (note that variables are not updated during all runs).
+
+		Returns
+		-------
+		request : dict
+			Dictionary with the calculation required to proceed and iteration information.
+			Structure:
+				* task : str - one of "calc_grad", "calc_grad_same_batch" (oLBFGS w. 'min_curvature' or 'check_nan'),
+				"calc_hess_vec" (SQN wo. 'use_grad_diff'), "calc_fun_val_batch" (adaQN w. 'max_incr'),
+				"calc_grad_big_batch" (SQN and adaQN w. 'use_grad_diff').
+				* requested_on : array(m, ) or tuple(array(m, ), array(m, )), containing the values on which
+				the request in "task" has to be evaluated. In the case of Hessian-vector products (SQN), the
+				first vector is the values of 'x' and the second is the vector with which the product is required.
+				* info : dict(x_changed_in_run : bool, iteration_number : int, iteration_info : str),
+				iteration_info can be one of "no_problems_encountered", "search_direction_was_nan",
+				"func_increased", "curvature_too_small".
+		"""
+		assert isinstance(x, np.ndarray)
+		assert x.dtype == np.float64
+		if not self.initialized:
+			self._initialize(x.shape[0])
+
+		x_changed, niter, section, \
+		mem_used, mem_st_ix, \
+		task, iter_info, req_arr = _py_run_oLBFGS(self._oLBFGS, x, self.gradient, step_size)
+
+		self._oLBFGS.niter = ctypes.c_size_t(niter).value
+		self._oLBFGS.section = ctypes.c_int(section).value
+		self._oLBFGS.BFGS_mem.mem_used = ctypes.c_size_t(mem_used).value
+		self._oLBFGS.BFGS_mem.mem_st_ix = ctypes.c_size_t(mem_st_ix).value
+
+		out = {
+			"task" : task_dct[task],
+			"requested_on" : req_arr,
+			"info" : {
+				"x_changed_in_run" : bool(x_changed),
+				"iteration_number" : niter,
+				"iteration_info"   : info_dct[iter_info]
+			}
+		}
+		return out
+
+
+
+class SQN_free(_StochQN_free):
+	"""
+	SQN optimizer (free mode)
+
+	Optimizes an empirical (convex) loss function over batches of sample data. Compared to
+	class 'SQN', this version lets the user do all the calculations from the outside, only
+	interacting with the object by mode of a function that returns a request type and is fed the
+	required calculation through methods 'update_gradient' and 'update_hess_vec'.
+
+	Order in which requests are made:
+
+	========== loop ===========
+	* calc_grad
+		... (repeat calc_grad)
+	if 'use_grad_diff':
+		* calc_grad_big_batch
+	else:
+		* calc_hess_vec
+	===========================
+
+	Parameters
+	----------
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	bfgs_upd_freq : int
+		Number of iterations (batches) after which to generate a BFGS correction pair.
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	use_grad_diff : bool
+		Whether to create the correction pairs using differences between gradients instead of Hessian-vector products.
+		These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+	"""
+	def __init__(self, mem_size=10, bfgs_upd_freq=20, min_curvature=1e-4, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1):
+		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
+		assert bfgs_upd_freq > 0
+		self.bfgs_upd_freq = int(bfgs_upd_freq)
+		self.use_grad_diff = bool(use_grad_diff)
+		self.initialized = False
+
+	def _initialize(self, n):
+		self._SQN = _SQN_holder(n, self.mem_size, self.bfgs_upd_freq, self.min_curvature,
+								self.use_grad_diff, self.y_reg, self.check_nan, self.nthreads)
+		self.gradient = np.empty(n, dtype = ctypes.c_double)
+		if not self.use_grad_diff:
+			self.hess_vec = np.empty(n, dtype = ctypes.c_double)
+		else:
+			self.hess_vec = np.empty(1, dtype = ctypes.c_double)
+		self.initialized = True
+
+	def update_hess_vec(self, hess_vec):
+		"""
+		Pass requested Hessian-vector product to optimizer (task = "calc_hess_vec")
+		
+		Parameters
+		----------
+		hess_vec : array(m, )
+			Product of the Hessian evaluated at "requested_on"[0] with the vector "requested_on"[1],
+			calculated a larger batch of data than the gradient, perhaps including all the cases from the last such calculation.
+		"""
+		self.hess_vec[:] = hess_vec.astype(ctypes.c_double).reshape(-1)
+
+	def run_optimizer(self, x, step_size):
+		"""
+		Continue optimization process after supplying the calculation requested from the last run
+
+		Continue the optimization process from where it was left since the last calculation was
+		requested. Will internally do all the updates that are possible until the moment some
+		calculation of function/gradient/hessian-vector is required.
+
+		Note
+		----
+		The first time this is run, no calculation needs to be supplied.
+
+		Parameters
+		----------
+		x : array(m, )
+			Current values of the variables. Will be modified in-place.
+		step_size : float
+			Step size for the next update (note that variables are not updated during all runs).
+
+		Returns
+		-------
+		request : dict
+			Dictionary with the calculation required to proceed and iteration information.
+			Structure:
+				* task : str - one of "calc_grad", "calc_grad_same_batch" (oLBFGS w. 'min_curvature' or 'check_nan'),
+				"calc_hess_vec" (SQN wo. 'use_grad_diff'), "calc_fun_val_batch" (adaQN w. 'max_incr'),
+				"calc_grad_big_batch" (SQN and adaQN w. 'use_grad_diff').
+				* requested_on : array(m, ) or tuple(array(m, ), array(m, )), containing the values on which
+				the request in "task" has to be evaluated. In the case of Hessian-vector products (SQN), the
+				first vector is the values of 'x' and the second is the vector with which the product is required.
+				* info : dict(x_changed_in_run : bool, iteration_number : int, iteration_info : str),
+				iteration_info can be one of "no_problems_encountered", "search_direction_was_nan",
+				"func_increased", "curvature_too_small".
+		"""
+		assert isinstance(x, np.ndarray)
+		assert x.dtype == np.float64
+		if not self.initialized:
+			self._initialize(x.shape[0])
+
+		x_changed, niter, section, \
+		mem_used, mem_st_ix, \
+		task, iter_info, req, req_vec = py_run_SQN(self._SQN, x, step_size, self.gradient, self.hess_vec)
+
+		self._SQN.niter = ctypes.c_size_t(niter).value
+		self._SQN.section = ctypes.c_int(section).value
+		self._SQN.BFGS_mem.mem_used = ctypes.c_size_t(mem_used).value
+		self._SQN.BFGS_mem.mem_st_ix = ctypes.c_size_t(mem_st_ix).value
+		
+		out = {
+			"task" : task_dct[task],
+			"requested_on" : None,
+			"info" : {
+				"x_changed_in_run" : bool(x_changed),
+				"iteration_number" : niter,
+				"iteration_info"   : info_dct[iter_info]
+			}
+		}
+		if req_vec is not None:
+			out["requested_on"] = (req, req_vec)
+		else:
+			out["requested_on"] = req
+		return out
+
+
+class adaQN_free(_StochQN_free):
+	"""
+	adaQN optimizer (free mode)
+
+	Optimizes an empirical (perhaps non-convex) loss function over batches of sample data. Compared to
+	class 'adaQN', this version lets the user do all the calculations from the outside, only
+	interacting with the object by mode of a function that returns a request type and is fed the
+	required calculation through methods 'update_gradient' and 'update_function'.
+
+	Order in which requests are made:
+
+	========== loop ===========
+	* calc_grad
+		... (repeat calc_grad)
+	if max_incr > 0:
+		* calc_fun_val_batch
+	if 'use_grad_diff':
+		* calc_grad_big_batch	(skipped if below max_incr)
+	===========================
+
+	Parameters
+	----------
+	mem_size : int
+		Number of correction pairs to store for approximation of Hessian-vector products.
+	fisher_size : int or None
+		Number of gradients to store for calculation of the empirical Fisher product with gradients.
+		If passing 'None', will force 'use_grad_diff' to 'True'.
+	bfgs_upd_freq : int
+		Number of iterations (batches) after which to generate a BFGS correction pair.
+	max_incr : float or None
+		Maximum ratio of function values in the validation set under the average values of 'x' during current epoch
+		vs. previous epoch. If the ratio is above this threshold, the BFGS and Fisher memories will be reset, and 'x'
+		values reverted to their previous average.
+		If not using a validation set, will take a longer batch for function evaluations (same as used for gradients
+		when using 'use_grad_diff=True').
+	min_curvature : float or None
+		Minimum value of s*y / s*s in order to accept a correction pair.
+	scal_reg : float
+		Regularization parameter to use in the denominator for AdaGrad and RMSProp scaling.
+	rmsprop_weight : float(0,1) or None
+		If not 'None', will use RMSProp formula instead of AdaGrad for approximated inverse-Hessian initialization.
+	use_grad_diff : bool
+		Whether to create the correction pairs using differences between gradients instead of Fisher matrix.
+		These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
+		If 'True', fisher_size will be set to None, and empirical Fisher matrix will not be used.
+	check_nan : bool
+		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
+		(will also reset BFGS memory).
+	nthreads : int
+		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
+		all of them. Note however that not all the computations can be parallelized.
+	"""
+	def __init__(self, mem_size=10, fisher_size=100, bfgs_upd_freq=20, max_incr=1.01, min_curvature=1e-4, scal_reg=1e-4,
+		rmsprop_weight=None, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1):
+
+		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
+		assert bfgs_upd_freq > 0
+		bfgs_upd_freq = int(bfgs_upd_freq)
+		if not use_grad_diff:
+			assert fisher_size > 0
+			fisher_size = int(fisher_size)
+		else:
+			fisher_size = 0
+		if max_incr is not None:
+			assert max_incr > 0
+		else:
+			max_incr = 0
+		assert scal_reg > 0
+		if rmsprop_weight is not None:
+			assert rmsprop_weight > 0
+			assert rmsprop_weight < 1
+		else:
+			rmsprop_weight = 0
+
+		self.fisher_size = fisher_size
+		self.bfgs_upd_freq = bfgs_upd_freq
+		self.max_incr = max_incr
+		self.scal_reg = scal_reg
+		self.rmsprop_weight = rmsprop_weight
+		self.use_grad_diff = bool(use_grad_diff)
+		self.initialized = False
+
+	def _initialize(self, n):
+		self._adaQN = _adaQN_holder(n, self.mem_size, self.fisher_size, self.bfgs_upd_freq, self.max_incr,
+									self.min_curvature, self.scal_reg, self.rmsprop_weight,
+									self.use_grad_diff, self.y_reg, self.check_nan, self.nthreads)
+		self.gradient = np.empty(n, dtype = ctypes.c_double)
+		self.f = ctypes.c_double(0.0).value
+		self.initialized = True
+
+	def update_function(self, fun):
+		"""
+		Pass requested function evaluation to optimizer (task = "calc_fun_val_batch")
+
+		Parameters
+		----------
+		fun : float
+			Function evaluated at "requested_on" under a validation set or a larger batch, perhaps
+			including all the cases from the last such calculation.
+		"""
+		self.f = ctypes.c_double(float(fun)).value
+
+	def run_optimizer(self, x, step_size):
+		"""
+		Continue optimization process after supplying the calculation requested from the last run
+
+		Continue the optimization process from where it was left since the last calculation was
+		requested. Will internally do all the updates that are possible until the moment some
+		calculation of function/gradient/hessian-vector is required.
+
+		Note
+		----
+		The first time this is run, no calculation needs to be supplied.
+
+		Parameters
+		----------
+		x : array(m, )
+			Current values of the variables. Will be modified in-place.
+			Do NOT modify the values between runs.
+		step_size : float
+			Step size for the next update (note that variables are not updated during all runs).
+
+		Returns
+		-------
+		request : dict
+			Dictionary with the calculation required to proceed and iteration information.
+			Structure:
+				* task : str - one of "calc_grad", "calc_grad_same_batch" (oLBFGS w. 'min_curvature' or 'check_nan'),
+				"calc_hess_vec" (SQN wo. 'use_grad_diff'), "calc_fun_val_batch" (adaQN w. 'max_incr'),
+				"calc_grad_big_batch" (SQN and adaQN w. 'use_grad_diff').
+				* requested_on : array(m, ) or tuple(array(m, ), array(m, )), containing the values on which
+				the request in "task" has to be evaluated. In the case of Hessian-vector products (SQN), the
+				first vector is the values of 'x' and the second is the vector with which the product is required.
+				* info : dict(x_changed_in_run : bool, iteration_number : int, iteration_info : str),
+				iteration_info can be one of "no_problems_encountered", "search_direction_was_nan",
+				"func_increased", "curvature_too_small".
+		"""
+		assert isinstance(x, np.ndarray)
+		assert x.dtype == np.float64
+		if not self.initialized:
+			self._initialize(x.shape[0])
+
+		x_changed, niter, section, \
+		mem_used, mem_st_ix, \
+		f_mem_used, f_mem_st_ix, f_prev, \
+		task, iter_info, req = py_run_adaQN(self._adaQN, x, self.gradient, step_size, self.f)
+
+		self._adaQN.niter = ctypes.c_size_t(niter).value
+		self._adaQN.section = ctypes.c_int(section).value
+		self._adaQN.f_prev = ctypes.c_double(f_prev).value
+		self._adaQN.BFGS_mem.mem_used = ctypes.c_size_t(mem_used).value
+		self._adaQN.BFGS_mem.mem_st_ix = ctypes.c_size_t(mem_st_ix).value
+		self._adaQN.Fisher_mem.mem_used = ctypes.c_size_t(f_mem_used).value
+		self._adaQN.Fisher_mem.mem_st_ix = ctypes.c_size_t(f_mem_st_ix).value
+
+		out = {
+			"task" : task_dct[task],
+			"requested_on" : req,
+			"info" : {
+				"x_changed_in_run" : bool(x_changed),
+				"iteration_number" : niter,
+				"iteration_info"   : info_dct[iter_info]
+			}
+		}
+		return out
+

@@ -6,7 +6,7 @@ This package contains implementations of the following stochastic limited-memory
 * oLBFGS (see reference [4])
 * Variations of these by e.g. using gradient differences instead of Hessian-vector products or empirical Fisher matrix (see reference [1])
 
-Implementations are in C with a Python interface (R interface to come in the future) and C++ wrapper (with RAII-classes). They are designed in a memory-conscious way so as to avoid unnecessary copying, and introduce parallelization when advantageous.
+Implementations are in C with a Python interface (R interface to come in the future) and C++ wrapper (with RAII-classes). They are designed in a memory-conscious way so as to avoid unnecessary copying (in the C/C++ versions), and introduce parallelization when advantageous.
 
 ## Optimizers
 

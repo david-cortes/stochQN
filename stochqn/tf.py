@@ -1,6 +1,7 @@
 import numpy as np, tensorflow as tf
 from stochqn._optimizers import oLBFGS, adaQN
 from copy import deepcopy
+import ctypes, warnings
 
 #### Workaround for passing data in Tensorflow
 class _Subscriptable_None:
@@ -47,21 +48,36 @@ class TensorflowStochQNOptimizer(tf.contrib.opt.ExternalOptimizerInterface):
 		tf.contrib.opt.ExternalOptimizerInterface.__init__(self, loss, var_list, None, None, None)
 
 	def _minimize(self, initial_val, loss_grad_func, equality_funcs,
-		equality_grad_funcs, inequality_funcs, inequality_grad_funcs,
-		packed_bounds, step_callback, optimizer_kwargs):
+				  equality_grad_funcs, inequality_funcs, inequality_grad_funcs,
+				  packed_bounds, step_callback, optimizer_kwargs):
+
 		def grad_fun(*args, **kwargs):
 			return loss_grad_func(self.optimizer.x)[1]
 		def obj_fun(*args, **kwargs):
 			return loss_grad_func(self.optimizer.x)[0]
+
+		if initial_val.dtype != ctypes.c_double:
+			warnings.warn("Passed a variable with dtype different from C double (float 64) - will copy and cast the data.")
+			correct_dtype = False
+			initial_val_pass = initial_val.astype(ctypes.c_double)
+		else:
+			correct_dtype = True
+			initial_val_pass = initial_val
+
 		if self.optimizer is None:
 			self.pass_args["valset_frac"] = None
 			if self.optimizer_name == "adaQN":
 				self.pass_args["max_incr"] = None
 			if self.optimizer_name == "oLBFGS":
-				self.optimizer = oLBFGS(initial_val, grad_fun=grad_fun, obj_fun=obj_fun, **self.pass_args)
+				self.optimizer = oLBFGS(initial_val_pass, grad_fun=grad_fun, obj_fun=obj_fun, **self.pass_args)
 			elif self.optimizer_name == "adaQN":
-				self.optimizer = adaQN(initial_val, grad_fun=grad_fun, obj_fun=obj_fun, **self.pass_args)
+				self.optimizer = adaQN(initial_val_pass, grad_fun=grad_fun, obj_fun=obj_fun, **self.pass_args)
 			else:
 				raise ValueError("'optimizer' must be one of 'oLBFGS' or 'adaQN'.")
-		self.optimizer.partial_fit(_Subscriptable_None(initial_val.shape[0]), _Subscriptable_None(initial_val.shape[0]))
-		return self.optimizer.x
+		self.optimizer.partial_fit(_Subscriptable_None(initial_val_pass.shape[0]), _Subscriptable_None(initial_val_pass.shape[0]))
+
+		if correct_dtype:
+			return self.optimizer.x
+		else:
+			initial_val[:] = self.optimizer.x
+			return self.optimizer.x.astype(initial_val.dtype)
