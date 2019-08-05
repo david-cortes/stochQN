@@ -20,7 +20,6 @@ class build_ext_subclass( build_ext_with_blas ):
 				e.extra_compile_args += ['-O2', '-fopenmp', '-march=native', '-std=c99']
 				e.extra_link_args += ['-fopenmp']
 		for e in self.extensions:
-			e.cython_directives = {"embedsignature": True}
 			if from_rtd:
 				e.define_macros += [("_FOR_RTD", None)]
 		build_ext_with_blas.build_extensions(self)
