@@ -166,7 +166,7 @@ def _py_run_oLBFGS(py_oLBFGS, x, grad, step_size):
 	cdef double* req
 	cdef int x_changed = run_oLBFGS(step_size, ptr_double(x), ptr_double(grad), &req, &task, &oLBFGS, &iter_info)
 	return  x_changed, oLBFGS.niter, oLBFGS.section, \
-			oLBFGS.bfgs_memory.mem_used, oLBFGS.bfgs_memory.mem_st_ix, \
+			BFGS_mem.mem_used, BFGS_mem.mem_st_ix, \
 			task, iter_info, np.asarray(<np.float64_t[:x.shape[0]]> req)
 
 def py_run_SQN(py_SQN, x, step_size, grad, hess_vec):
@@ -184,7 +184,7 @@ def py_run_SQN(py_SQN, x, step_size, grad, hess_vec):
 				task, iter_info, np.asarray(<np.float64_t[:x.shape[0]]> req), np.asarray(<np.float64_t[:x.shape[0]]> req_vec)
 	else:
 		return  x_changed, SQN.niter, SQN.section, \
-				SQN.bfgs_memory.mem_used, SQN.bfgs_memory.mem_st_ix, \
+				BFGS_mem.mem_used, BFGS_mem.mem_st_ix, \
 				task, iter_info, np.asarray(<np.float64_t[:x.shape[0]]> req), None
 
 def py_run_adaQN(py_adaQN, x, grad, step_size, f):
@@ -196,6 +196,6 @@ def py_run_adaQN(py_adaQN, x, grad, step_size, f):
 	cdef double* req = NULL
 	cdef int x_changed = run_adaQN(step_size, ptr_double(x), f, ptr_double(grad), &req, &task, &adaQN, &iter_info)
 	return  x_changed, adaQN.niter, adaQN.section, \
-			adaQN.bfgs_memory.mem_used, adaQN.bfgs_memory.mem_st_ix, \
-			adaQN.fisher_memory.mem_used, adaQN.fisher_memory.mem_st_ix, adaQN.f_prev, \
+			BFGS_mem.mem_used, BFGS_mem.mem_st_ix, \
+			Fisher_mem.mem_used, Fisher_mem.mem_st_ix, adaQN.f_prev, \
 			task, iter_info, np.asarray(<np.float64_t[:x.shape[0]]> req)
