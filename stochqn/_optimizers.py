@@ -904,7 +904,7 @@ class oLBFGS_free(_StochQN_free):
 
 	Optimizes an empirical (convex) loss function over batches of sample data. Compared to
 	class 'oLBFGS', this version lets the user do all the calculations from the outside, only
-	interacting with the object by mode of a function that returns a request type and is fed the
+	interacting with the object by means of a function that returns a request type and is fed the
 	required calculation through a method 'update_gradient'.
 
 	Order in which requests are made:
@@ -920,11 +920,11 @@ class oLBFGS_free(_StochQN_free):
 		Number of correction pairs to store for approximation of Hessian-vector products.
 	hess_init : float or None
 		value to which to initialize the diagonal of H0.
-		If passing 0, will use the same initializion as for SQN (s_last*y_last / y_last*y_last).
-	y_reg : float or None
-		regularizer for 'y' vector (gets added y_reg * s)
+		If passing 'None', will use the same initializion as for SQN (s_last*y_last / y_last*y_last).
 	min_curvature : float or None
 		Minimum value of s*y / s*s in order to accept a correction pair.
+	y_reg : float or None
+		Regularizer for 'y' vector (gets added y_reg * s).
 	check_nan : bool
 		Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
 		(will also reset BFGS memory).
@@ -1015,7 +1015,7 @@ class SQN_free(_StochQN_free):
 
 	Optimizes an empirical (convex) loss function over batches of sample data. Compared to
 	class 'SQN', this version lets the user do all the calculations from the outside, only
-	interacting with the object by mode of a function that returns a request type and is fed the
+	interacting with the object by means of a function that returns a request type and is fed the
 	required calculation through methods 'update_gradient' and 'update_hess_vec'.
 
 	Order in which requests are made:
@@ -1037,6 +1037,8 @@ class SQN_free(_StochQN_free):
 		Number of iterations (batches) after which to generate a BFGS correction pair.
 	min_curvature : float or None
 		Minimum value of s*y / s*s in order to accept a correction pair.
+	y_reg : float or None
+		Regularizer for 'y' vector (gets added y_reg * s).
 	use_grad_diff : bool
 		Whether to create the correction pairs using differences between gradients instead of Hessian-vector products.
 		These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
@@ -1146,7 +1148,7 @@ class adaQN_free(_StochQN_free):
 
 	Optimizes an empirical (perhaps non-convex) loss function over batches of sample data. Compared to
 	class 'adaQN', this version lets the user do all the calculations from the outside, only
-	interacting with the object by mode of a function that returns a request type and is fed the
+	interacting with the object by means of a function that returns a request type and is fed the
 	required calculation through methods 'update_gradient' and 'update_function'.
 
 	Order in which requests are made:
@@ -1181,6 +1183,8 @@ class adaQN_free(_StochQN_free):
 		Regularization parameter to use in the denominator for AdaGrad and RMSProp scaling.
 	rmsprop_weight : float(0,1) or None
 		If not 'None', will use RMSProp formula instead of AdaGrad for approximated inverse-Hessian initialization.
+	y_reg : float or None
+		Regularizer for 'y' vector (gets added y_reg * s).
 	use_grad_diff : bool
 		Whether to create the correction pairs using differences between gradients instead of Fisher matrix.
 		These gradients are calculated on a larger batch than the regular ones (given by batch_size * bfgs_upd_freq).
