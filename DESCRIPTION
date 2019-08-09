@@ -1,0 +1,20 @@
+Package: stochQN
+Type: Package
+Title: Stochastic Limit Memory Quasi-Newton Optimizers
+Version: 0.1.0
+Date: 2019-08-09
+Author: David Cortes
+Maintainer: David Cortes <david.cortes.rivera@gmail.com>
+URL: https://github.com/david-cortes/stochQN
+BugReports: https://github.com/david-cortes/stochQN/issues
+Description: Implementations of stochastic, limited-memory quasi-Newton optimizers
+	(oLBFGS  (Schraudolph, N.N., Yu, J. and Guenter, S., 2007 <http://proceedings.mlr.press/v2/schraudolph07a.html>),
+	SQN (Byrd, R.H., Hansen, S.L., Nocedal, J. and Singer, Y., 2016 <arXiv:1401.7020>),
+	adaQN (Keskar, N.S., Berahas, A.S., 2016, <arXiv:1511.01169>))
+	for smooth stochastic optimization, with an API for easily creating S3 objects
+	with partial_fit/predict methods from some given objective/gradient/predict functions.
+	Includes an example stochastic logistic regression using these optimizers.
+	Provides header files and registered C routines for using it directly from C/C++.
+License: BSD_2_clause + file LICENSE
+NeedsCompilation: yes
+RoxygenNote: 6.1.1

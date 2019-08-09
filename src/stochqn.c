@@ -194,8 +194,8 @@ static inline void multiply_elemwise(double inout[restrict], const double other[
 	size_t n_szt = (size_t) n;
 	#endif
 
-	#pragma omp parallel for if((n > 1e6) && (nthreads > 4)) schedule(static, n/nthreads) firstprivate(inout, other, n_szt) num_threads(nthreads)
-	for (size_t_for i = 0; i < n_szt; i++){inout[i] *= other[i];}
+	#pragma omp parallel for if((n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(inout, other, n_szt) num_threads(nthreads)
+	for (size_t_for i = 0; i < n_szt; i++) inout[i] *= other[i];
 }
 
 static inline void difference_elemwise(double out[restrict], const double later[restrict], const double earlier[restrict], const int n, const int nthreads)
@@ -207,8 +207,8 @@ static inline void difference_elemwise(double out[restrict], const double later[
 	size_t n_szt = (size_t) n;
 	#endif
 	
-	#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static, n/nthreads) firstprivate(n_szt, out, later, earlier) num_threads(nthreads)
-	for (size_t_for i = 0; i < n_szt; i++){out[i] = later[i] - earlier[i];}
+	#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(n_szt, out, later, earlier) num_threads(nthreads)
+	for (size_t_for i = 0; i < n_szt; i++) out[i] = later[i] - earlier[i];
 }
 
 static inline int check_inf_nan(const double arr[], const int n, const int nthreads)
@@ -217,14 +217,14 @@ static inline int check_inf_nan(const double arr[], const int n, const int nthre
 	size_t n_szt = (size_t) n;
 	int is_wrong = 0;
 
-	#if defined(_OPENMP) & (_OPENMP > 201305) /* OpenMP >= 4.0 */
+	#if defined(_OPENMP) & !defined(_WIN32) &!defined(_WIN64) & (_OPENMP > 201305) /* OpenMP >= 4.0 */
 	/*	Note1: in most cases the array should not have invalid elements
 		Note2: 'omp cancel' is disabled by default through an environmental variable,
 				and it will ignore modifications of it within the same calling program,
 				so it very likely willnot end up cancelling for most use-cases.
 	*/
 	if ( (n > 1e8) && (nthreads > 4) ){
-		#pragma omp parallel for schedule(static, n/(4*nthreads)) firstprivate(arr, n_szt) reduction(max: is_wrong) num_threads(nthreads)
+		#pragma omp parallel for schedule(static) firstprivate(arr, n_szt) reduction(max: is_wrong) num_threads(nthreads)
 		for (size_t i = 0; i < n_szt; i++){
 			if (isinf(arr[i])){
 				is_wrong = 1;
@@ -259,8 +259,8 @@ static inline void add_to_sum(const double new_values[restrict], double sum_arr[
 	size_t n_szt = (size_t) n;
 	#endif
 
-	#pragma omp parallel for if((n > 1e6) && (nthreads > 4)) schedule(static, n/nthreads) firstprivate(sum_arr, new_values, n_szt) num_threads(nthreads)
-	for (size_t_for i = 0; i < n_szt; i++){ sum_arr[i] += new_values[i]; }
+	#pragma omp parallel for if((n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(sum_arr, new_values, n_szt) num_threads(nthreads)
+	for (size_t_for i = 0; i < n_szt; i++) sum_arr[i] += new_values[i];
 }
 
 static inline void average_from_sum(double arr_sum[], const size_t n_summed, const int n)
@@ -549,13 +549,13 @@ static inline void flush_fisher_mem(fisher_mem *fisher_memory)
 static inline void incr_bfgs_counters(bfgs_mem *bfgs_memory)
 {
 	bfgs_memory->mem_st_ix = (bfgs_memory->mem_st_ix + 1) % bfgs_memory->mem_size;
-	bfgs_memory->mem_used = (bfgs_memory->mem_used + 1 >= bfgs_memory->mem_size)? bfgs_memory->mem_size : bfgs_memory->mem_used + 1;
+	bfgs_memory->mem_used = ((bfgs_memory->mem_used + 1) >= bfgs_memory->mem_size)? bfgs_memory->mem_size : (bfgs_memory->mem_used + 1);
 }
 
 static inline void incr_fisher_counters(fisher_mem *fisher_memory)
 {
 	fisher_memory->mem_st_ix = (fisher_memory->mem_st_ix + 1) % fisher_memory->mem_size;
-	fisher_memory->mem_used = (fisher_memory->mem_used + 1 >= fisher_memory->mem_size)? fisher_memory->mem_size : fisher_memory->mem_used + 1;
+	fisher_memory->mem_used = ((fisher_memory->mem_used + 1) >= fisher_memory->mem_size)? fisher_memory->mem_size : (fisher_memory->mem_used + 1);
 }
 
 static inline void add_to_fisher_mem(double grad[], fisher_mem *fisher_memory, const int n, const int nthreads)
@@ -711,15 +711,15 @@ static inline void update_sum_sq(double grad[restrict], double grad_sum_sq[restr
 	if (rmsprop_weight > 0 && rmsprop_weight < 1)
 	{
 		weight_new = 1 - rmsprop_weight;
-		#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static, n/nthreads) firstprivate(n_szt, grad, grad_sum_sq, rmsprop_weight, weight_new) num_threads(nthreads)
-		for (size_t_for i = 0; i < n_szt; i++){grad_sum_sq[i] = rmsprop_weight*grad_sum_sq[i] + weight_new*(grad[i] * grad[i]);}
+		#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq, rmsprop_weight, weight_new) num_threads(nthreads)
+		for (size_t_for i = 0; i < n_szt; i++) grad_sum_sq[i] = rmsprop_weight*grad_sum_sq[i] + weight_new*(grad[i] * grad[i]);
 	}
 	
 	/* AdaGrad update */
 	else 
 	{
-		#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static, n/nthreads) firstprivate(n_szt, grad, grad_sum_sq) num_threads(nthreads)
-		for (size_t_for i = 0; i < n_szt; i++){grad_sum_sq[i] += grad[i] * grad[i];}
+		#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq) num_threads(nthreads)
+		for (size_t_for i = 0; i < n_szt; i++) grad_sum_sq[i] += grad[i] * grad[i];
 	}
 }
 
@@ -748,11 +748,11 @@ static inline void diag_rescal(double direction[restrict], double grad[restrict]
 	#endif
 
 	if (direction == NULL) {
-		#pragma omp parallel for if( (n > 1e6) && (nthreads >= 4) ) schedule(static, n/nthreads) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads)
-		for (size_t_for i = 0; i < n_szt; i++){grad[i] /= sqrt(grad_sum_sq[i] + scal_reg);}
+		#pragma omp parallel for if( (n > 1e6) && (nthreads >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads)
+		for (size_t_for i = 0; i < n_szt; i++) grad[i] /= sqrt(grad_sum_sq[i] + scal_reg);
 	} else {
-		#pragma omp parallel for if( (n > 1e6) && (nthreads >= 4) ) schedule(static, n/nthreads) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads)
-		for (size_t_for i = 0; i < n_szt; i++){direction[i] = grad[i] / sqrt(grad_sum_sq[i] + scal_reg);}
+		#pragma omp parallel for if( (n > 1e6) && (nthreads >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads)
+		for (size_t_for i = 0; i < n_szt; i++) direction[i] = grad[i] / sqrt(grad_sum_sq[i] + scal_reg);
 	}
 }
 
