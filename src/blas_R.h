@@ -22,7 +22,7 @@ void cblas_dgemv(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE trans, int m, int 
 	char T;
 	int M, N, LDA;
 	if (order == CblasRowMajor) {
-		if (trans == CblasNoTrans) { T = 'T'; M = n; N = m; LDA = n; } else { T = 'N'; M = m; N = n; LDA = m; }
+		if (trans == CblasNoTrans) { T = 'T'; M = n; N = m; LDA = n; } else { T = 'N'; M = n; N = m; LDA = n; }
 	} else {
 		M = m; N = n; LDA = lda;
 		if (trans == CblasNoTrans) { T = 'N'; } else { T = 'T'; }
