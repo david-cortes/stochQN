@@ -3,7 +3,7 @@ logistic_loss <- function(coefs, X, y, weights = NULL, lambda = 1e-5) {
 	if (is.null(weights)) {
 		logloss <- mean(-(y * log(pred) + (1 - y) * log(1 - pred)))
 	} else {
-		logloss <- mean(-(y * log(pred) + (1 - y) * log(1 - pred)) * weights)
+		logloss <- sum( -(y * log(pred) + (1 - y) * log(1 - pred)) * weights) / sum(weights)
 	}
 	reg     <- lambda * as.numeric(coefs %*% coefs)
 	return(logloss + reg)
@@ -14,9 +14,9 @@ logistic_grad <- function(coefs, X, y, weights = NULL, lambda = 1e-5) {
 	if (is.null(weights)) {
 		grad <- colMeans(X * as.numeric(pred - y))
 	} else {
-		grad <- colMeans(X * as.numeric(pred - y)  * weights)
+		grad <- colSums( X * as.numeric(pred - y)  * weights) / sum(weights)
 	}
-	grad <- grad + 2 * lambda * as.numeric(coefs^2)
+	grad <- grad + 2 * lambda * as.numeric(coefs)
 	return(as.numeric(grad))
 }
 
@@ -28,7 +28,11 @@ logistic_Hess_vec <- function(coefs, vec, X, y, weights = NULL, lambda = 1e-5) {
 		diag <- pred * (1 - pred) * weights
 	}
 	Hp   <- (t(X) * diag) %*% (X %*% vec)
-	Hp   <- Hp / NROW(X) + 2 * lambda * vec
+	if (is.null(weights)) {
+		Hp   <- Hp / NROW(X)      + 2 * lambda * vec
+	} else {
+		Hp   <- Hp / sum(weights) + 2 * lambda * vec
+	}
 	return(as.numeric(Hp))
 }
 
@@ -152,10 +156,36 @@ stochastic.logistic.regression <- function(formula = NULL, pos_class = NULL, dim
 	}
 	if (optimizer == "adaQN") {
 		optimizer_args$obj_fun      <- logistic_loss
+		
 		if (!is.null(val_data)) {
+			
 			if (!("list" %in% class(val_data)) || !("X" %in% names(val_data))) {
 				stop("'val_data', if passed, must be a list with entries 'X', 'y', optionally 'w'.")
 			}
+			if (!is.null(formula)) {
+				if (!("data.frame" %in% class(val_data$X))) {
+					stop("'X' in validation set data must be a 'data.frame'.")
+				}
+				if (!is.null(val_data$y)) warning("'y' in validation data is ignored when passing formula.")
+			} else {
+				if (is.null(val_data$y)) stop("'y' in validation data cannot be missing when using formula.")
+				if ("integer" %in% class(val_data$y)) val_data$y <- as.numeric(val_data$y)
+				if (NROW(X) != NROW(y)) {
+					stop("'y' in validation set data must have the same number of rows as 'X'.")
+				}
+				if (NCOL(val_data$y) != 1 || !("numeric" %in% class(val_data$y))) {
+					stop("'y' in validation data must be a numeric vector.")
+				}
+			}
+			
+			if (!is.null(val_data$w) && (NROW(val_data$w) != NROW(val_data$X))) {
+				stop("'w' in validation set data must have the same number of rows as 'X'.")
+			}
+			if ("integer" %in% class(val_data$w)) val_data$w <- as.numeric(val_data$w)
+			if (!is.null(val_data$w) && (NCOL(val_data$w) != 1 || !("numeric" %in% class(val_data$w)))) {
+				stop("'w' in validation data must be a numeric vector.")
+			}
+			
 			optimizer_args$X_val <- val_data$X
 			optimizer_args$y_val <- val_data$y
 			optimizer_args$w_val <- val_data$w
@@ -320,23 +350,37 @@ partial_fit_logistic <- function(logistic_model, X, y = NULL, w = NULL) {
 		}
 		if (any(sapply(X, function(x) "factor" %in% class(x)))) {
 			this$factor_cols <- names(X)[sapply(X, function(x) "factor" %in% class(x))]
-			this$factor_levs <- lapply(this$factor_cols, function(cl, df) levels(df[[cl]]), X)
 		} else {
 			this$factor_cols <- c()
 			this$factor_levs <- list()
 		}
 		if (!is.null(this$formula)) {
 			
-			sample_X   <- model.matrix(this$formula, data = X[1, , drop = FALSE])
-			this$target_col <- attr(attr(terms(logistic_model$formula, data = sample_X), "factors"), "dimnames")[[1]][1]
+			sample_X         <- model.matrix(this$formula, data = X[1, , drop = FALSE])
+			this$target_col  <- attr(attr(terms(logistic_model$formula, data = sample_X), "factors"), "dimnames")[[1]][1]
 			if (!(this$target_col %in% colnames(X))) stop("'X' does not contain target column.")
 			if (!("factor" %in% class(X[[this$target_col]]))) stop("Target column in formula must be of class 'factor'.")
 			if (NROW(levels(X[[this$target_col]])) != 2) stop("Target column must have 2 factor levels.")
 			if (!(this$pos_class %in% levels(X[[this$target_col]]))) stop("Positive class is not a factor level in target column.")
-			this$neg_class <- setdiff(levels(X[[this$target_col]]), this$pos_class)
+			this$neg_class   <- setdiff(levels(X[[this$target_col]]), this$pos_class)
 			this$factor_cols <- setdiff(this$factor_cols, this$target_col)
-			this$factor_levs <- this$factor_levs[this$factor_levs != this$target_col]
-			names(this$factor_lev) <- this$factor_cols
+			this$factor_levs <- lapply(this$factor_cols, function(cl, df) levels(df[[cl]]), X)
+			names(this$factor_levs) <- this$factor_cols
+			
+			if (!is.null(this$optimizer_args$X_val)) {
+				if (NROW(this$factor_cols)) {
+					this$optimizer_args$X_val[, this$factor_cols] <- as.data.frame(lapply(
+																		this$factor_cols,
+																		function(cl, df, levs) factor(df[[cl]], levels = levs[[cl]]),
+																		this$optimizer_args$X_val[, this$factor_cols, drop = FALSE],
+																		this$factor_levs))
+				}
+				if (!(this$target_col %in% colnames(this$optimizer_args$X_val))) {
+					stop("'X' in validation data does not contain target column.")
+				}
+				this$optimizer_args$y_val <- as.numeric(this$optimizer_args$X_val[[this$target_col]] == this$pos_class)
+				this$optimizer_args$X_val <- model.matrix(this$formula, data = this$optimizer_args$X_val)
+			}
 			
 			dim           <- NCOL(sample_X)
 			this$colnames <- colnames(sample_X)

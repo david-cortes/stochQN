@@ -28,14 +28,19 @@ partial_fit <- function(optimizer, X, y = NULL, weights = NULL, ...) {
 	new_req <- this$req
 	
 	if ("oLBFGS" %in% class(this)) {
-		curr_iter <- this$optimizer$oLBFGS$niter + 1 - 1
+		opt_name <- "oLBFGS"
 	} else if ("SQN" %in% class(this)) {
-		curr_iter <- this$optimizer$SQN$niter + 1 - 1
+		opt_name <- "SQN"
 	} else if ("adaQN" %in% class(this)) {
-		curr_iter <- this$optimizer$adaQN$niter + 1 - 1
+		opt_name <- "adaQN"
 	} else {
 		stop("Invalid optimizer object.")
 	}
+	
+	curr_iter <- switch(opt_name,
+						"oLBFGS" = this$optimizer$oLBFGS$niter + 1 - 1,
+						"SQN"    = this$optimizer$SQN$niter    + 1 - 1,
+						"adaQN"  = this$optimizer$adaQN$niter  + 1 - 1)
 	
 	while (TRUE) {
 
@@ -70,23 +75,16 @@ partial_fit <- function(optimizer, X, y = NULL, weights = NULL, ...) {
 		}
 		
 		### Run again
-		if ("oLBFGS" %in% class(this)) {
+		if (opt_name == "oLBFGS") {
 			new_req <- run_oLBFGS_free(this$optimizer, this$x0, this$step_fun(this$optimizer$oLBFGS$niter) * this$initial_step)
-		} else if ("SQN" %in% class(this)) {
+		} else if (opt_name == "SQN") {
 			new_req <- run_SQN_free(this$optimizer, this$x0, this$step_fun(this$optimizer$SQN$niter) * this$initial_step)
-		} else if ("adaQN" %in% class(this)) {
+		} else if (opt_name == "adaQN") {
 			new_req <- run_adaQN_free(this$optimizer, this$x0, this$step_fun(this$optimizer$adaQN$niter) * this$initial_step)
 		}
 		
 		### Report potential problems if any were encountered
 		if (this$verbose && new_req$info$iteration_info != "no_problems_encountered") {
-			if ("oLBFGS" %in% class(this)) {
-				opt_name <- "oLBFGS"
-			} else if ("SQN" %in% class(this)) {
-				opt_name <- "SQN"
-			} else if ("adaQN" %in% class(this)) {
-				opt_name <- "adaQN"
-			}
 			cat(sprintf("%s - at iteration %d: %s\n", opt_name, new_req$info$iteration_number, new_req$info$iteration_info))
 		}
 
@@ -98,8 +96,11 @@ partial_fit <- function(optimizer, X, y = NULL, weights = NULL, ...) {
 	if (!is.null(this$callback_iter)) {
 		this$callback_iter(this$x0, new_req$info$iteration_number, this$args_cb)
 	}
+	
 	### Store this batch of data if needed
-	this <- save.batch(this, X, y, weights)
+	if (opt_name == "SQN" || (opt_name == "adaQN" && (this$optimizer$adaQN$max_incr > 0) && !NROW(this$valset))) {
+		this <- save.batch(this, X, y, weights)
+	}
 	
 	### Update the requested piece of info
 	this$req <- new_req
