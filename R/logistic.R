@@ -135,7 +135,7 @@ stochastic.logistic.regression <- function(formula = NULL, pos_class = NULL, dim
 			stop("'formula' must be a formula, e.g. 'y ~ x1 + x2'.")
 		}
 		if (is.null(pos_class)) stop("When using 'formula', must also pass 'pos_class'.")
-		dim <- NULL
+		dim       <- NULL
 		intercept <- NULL
 	} else { intercept <- check.is.bool(intercept, "intercept") }
 	if (is.null(x0)) {
@@ -170,7 +170,7 @@ stochastic.logistic.regression <- function(formula = NULL, pos_class = NULL, dim
 			} else {
 				if (is.null(val_data$y)) stop("'y' in validation data cannot be missing when using formula.")
 				if ("integer" %in% class(val_data$y)) val_data$y <- as.numeric(val_data$y)
-				if (NROW(X) != NROW(y)) {
+				if (NROW(val_data$X) != NROW(val_data$y)) {
 					stop("'y' in validation set data must have the same number of rows as 'X'.")
 				}
 				if (NCOL(val_data$y) != 1 || !("numeric" %in% class(val_data$y))) {
@@ -427,7 +427,7 @@ partial_fit_logistic <- function(logistic_model, X, y = NULL, w = NULL) {
 			stop("'X' has incorrect number of columns.")
 		}
 		if ("data.frame" %in% class(X)) X <- as.matrix(X)
-		if ("tibble" %in% class(X)) X <- as.matrix(X)
+		if ("tibble" %in% class(X))     X <- as.matrix(X)
 	}
 	
 	### Pass processed inputs to optimizer
