@@ -156,7 +156,7 @@ class StochasticLogisticRegression:
 		if isspmatrix(y):
 			warnings.warn("'StochasticLogisticRegression' only supports dense arrays for 'y', will cast the array.")
 			y = np.array(y.todense())
-		sample_weight /= X.shape[0] ### scikit-learn's function compute sums instead of means
+		sample_weight /= sample_weight.sum() ### scikit-learn's function compute sums instead of means
 		return X, y, sample_weight
 
 	def _initialize_optimizer(self, X, y):
