@@ -1,6 +1,6 @@
 Package: stochQN
 Type: Package
-Title: Stochastic Limit Memory Quasi-Newton Optimizers
+Title: Stochastic Limited Memory Quasi-Newton Optimizers
 Version: 0.1.0
 Date: 2019-08-09
 Author: David Cortes
