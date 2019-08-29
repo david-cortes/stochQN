@@ -8,9 +8,9 @@ Maintainer: David Cortes <david.cortes.rivera@gmail.com>
 URL: https://github.com/david-cortes/stochQN
 BugReports: https://github.com/david-cortes/stochQN/issues
 Description: Implementations of stochastic, limited-memory quasi-Newton optimizers,
-	similar in spirit to the LFBGS (Limited-memory Broyden-Fletcher-Goldfarb-Shanno) algorithm,
+	similar in spirit to the LBFGS (Limited-memory Broyden-Fletcher-Goldfarb-Shanno) algorithm,
 	for smooth stochastic optimization. Implements the following methods:
-	oLBFGS (online LFBGS) (Schraudolph, N.N., Yu, J. and Guenter, S., 2007 <http://proceedings.mlr.press/v2/schraudolph07a.html>),
+	oLBFGS (online LBFGS) (Schraudolph, N.N., Yu, J. and Guenter, S., 2007 <http://proceedings.mlr.press/v2/schraudolph07a.html>),
 	SQN (stochastic quasi-Newton) (Byrd, R.H., Hansen, S.L., Nocedal, J. and Singer, Y., 2016 <arXiv:1401.7020>),
 	adaQN (adaptive quasi-Newton) (Keskar, N.S., Berahas, A.S., 2016, <arXiv:1511.01169>).
 	Provides functions for easily creating R objects
