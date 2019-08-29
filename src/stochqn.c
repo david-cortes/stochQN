@@ -107,7 +107,7 @@ extern "C" {
 /*	OpenMP < 3.0 (e.g. MSVC as of 2019) does not support parallel for's with unsigned iterators,
 	and does not support declaring the iterator type in the loop itself */
 #ifdef _OPENMP
-	#if _OPENMP < 200801 /* OpenMP < 3.0 */
+	#if (_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64) /* OpenMP < 3.0 */
 		#define size_t_for 
 	#else
 		#define size_t_for size_t
@@ -142,13 +142,16 @@ static inline void copy_arr(const double src[restrict], double dest[restrict], c
 	/* Note: don't use BLAS dcopy as it's actually much slower */
 	#if defined(_OPENMP)
 
-	#if (_OPENMP < 200801) /* OpenMP < 3.0 */
+	#if (_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64) /* OpenMP < 3.0 */
 	int i;
 	#endif
 	int chunk_size = n / nthreads;
 	int remainder = n % nthreads;
 
-	#pragma omp parallel for schedule(static, 1) firstprivate(src, dest, chunk_size, nthreads) num_threads(nthreads)
+	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
+	int nthreads_non_const = nthreads;
+
+	#pragma omp parallel for schedule(static, 1) firstprivate(src, dest, chunk_size, nthreads) num_threads(nthreads_non_const)
 	for (size_t_for i = 0; i < nthreads; i++){
 		memcpy(dest + i * chunk_size, src + i * chunk_size, sizeof(double) * chunk_size);
 	}
@@ -166,13 +169,15 @@ static inline void set_to_zero(double arr[], const int n, const int nthreads)
 
 	#if defined(_OPENMP)
 
-	#if (_OPENMP < 200801) /* OpenMP < 3.0 */
+	#if (_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64) /* OpenMP < 3.0 */
 	int i;
 	#endif
 	int chunk_size = n / nthreads;
 	int remainder = n % nthreads;
+	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
+	int nthreads_non_const = nthreads;
 
-	#pragma omp parallel for schedule(static, 1) firstprivate(arr, chunk_size, nthreads) num_threads(nthreads)
+	#pragma omp parallel for schedule(static, 1) firstprivate(arr, chunk_size, nthreads) num_threads(nthreads_non_const)
 	for (size_t_for i = 0; i < nthreads; i++){
 		memset(arr + i * chunk_size, 0, sizeof(double) * chunk_size);
 	}
@@ -187,27 +192,33 @@ static inline void set_to_zero(double arr[], const int n, const int nthreads)
 
 static inline void multiply_elemwise(double inout[restrict], const double other[restrict], const int n, const int nthreads)
 {
-	#if defined(_OPENMP) && (_OPENMP < 200801) /* OpenMP < 3.0 */
+	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64)) /* OpenMP < 3.0 */
 	int i;
 	int n_szt = n;
 	#else
 	size_t n_szt = (size_t) n;
 	#endif
 
-	#pragma omp parallel for if((n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(inout, other, n_szt) num_threads(nthreads)
+	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
+	int nthreads_non_const = nthreads;
+
+	#pragma omp parallel for if((n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(inout, other, n_szt) num_threads(nthreads_non_const)
 	for (size_t_for i = 0; i < n_szt; i++) inout[i] *= other[i];
 }
 
 static inline void difference_elemwise(double out[restrict], const double later[restrict], const double earlier[restrict], const int n, const int nthreads)
 {
-	#if defined(_OPENMP) && (_OPENMP < 200801) /* OpenMP < 3.0 */
+	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64)) /* OpenMP < 3.0 */
 	int i;
 	int n_szt = n;
 	#else
 	size_t n_szt = (size_t) n;
 	#endif
+
+	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
+	int nthreads_non_const = nthreads;
 	
-	#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(n_szt, out, later, earlier) num_threads(nthreads)
+	#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(n_szt, out, later, earlier) num_threads(nthreads_non_const)
 	for (size_t_for i = 0; i < n_szt; i++) out[i] = later[i] - earlier[i];
 }
 
@@ -223,8 +234,11 @@ static inline int check_inf_nan(const double arr[], const int n, const int nthre
 				and it will ignore modifications of it within the same calling program,
 				so it very likely willnot end up cancelling for most use-cases.
 	*/
+
+	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
+	int nthreads_non_const = nthreads;
 	if ( (n > 1e8) && (nthreads > 4) ){
-		#pragma omp parallel for schedule(static) firstprivate(arr, n_szt) reduction(max: is_wrong) num_threads(nthreads)
+		#pragma omp parallel for schedule(static) firstprivate(arr, n_szt) reduction(max: is_wrong) num_threads(nthreads_non_const)
 		for (size_t i = 0; i < n_szt; i++){
 			if (isinf(arr[i])){
 				is_wrong = 1;
@@ -252,14 +266,17 @@ static inline void add_to_sum(const double new_values[restrict], double sum_arr[
 {
 	/* Note: daxpy in MKL is actually slower than this */
 
-	#if defined(_OPENMP) && (_OPENMP < 200801) /* OpenMP < 3.0 */
+	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64)) /* OpenMP < 3.0 */
 	int i;
 	int n_szt = n;
 	#else
 	size_t n_szt = (size_t) n;
 	#endif
 
-	#pragma omp parallel for if((n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(sum_arr, new_values, n_szt) num_threads(nthreads)
+	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
+	int nthreads_non_const = nthreads;
+
+	#pragma omp parallel for if((n > 1e6) && (nthreads_non_const > 4)) schedule(static) firstprivate(sum_arr, new_values, n_szt) num_threads(nthreads_non_const)
 	for (size_t_for i = 0; i < n_szt; i++) sum_arr[i] += new_values[i];
 }
 
@@ -699,7 +716,7 @@ static inline void approx_inv_hess_grad(double grad[], int n, double H0[], doubl
 */
 static inline void update_sum_sq(double grad[restrict], double grad_sum_sq[restrict], double rmsprop_weight, int n, int nthreads)
 {
-	#if defined(_OPENMP) && (_OPENMP < 200801)
+	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64))
 	int n_szt = n;
 	int i;
 	#else
@@ -707,18 +724,21 @@ static inline void update_sum_sq(double grad[restrict], double grad_sum_sq[restr
 	#endif
 	double weight_new;
 
+	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
+	int nthreads_non_const = nthreads;
+
 	/* RMSProp update */
 	if (rmsprop_weight > 0 && rmsprop_weight < 1)
 	{
 		weight_new = 1 - rmsprop_weight;
-		#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq, rmsprop_weight, weight_new) num_threads(nthreads)
+		#pragma omp parallel for if( (n > 1e6) && (nthreads_non_const > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq, rmsprop_weight, weight_new) num_threads(nthreads_non_const)
 		for (size_t_for i = 0; i < n_szt; i++) grad_sum_sq[i] = rmsprop_weight*grad_sum_sq[i] + weight_new*(grad[i] * grad[i]);
 	}
 	
 	/* AdaGrad update */
 	else 
 	{
-		#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq) num_threads(nthreads)
+		#pragma omp parallel for if( (n > 1e6) && (nthreads_non_const > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq) num_threads(nthreads_non_const)
 		for (size_t_for i = 0; i < n_szt; i++) grad_sum_sq[i] += grad[i] * grad[i];
 	}
 }
@@ -740,18 +760,21 @@ static inline void diag_rescal(double direction[restrict], double grad[restrict]
 	int n, double scal_reg, double rmsprop_weight, int nthreads)
 {
 	update_sum_sq(grad, grad_sum_sq, rmsprop_weight, n, nthreads);
-	#if defined(_OPENMP) && (_OPENMP < 200801)
+	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64))
 	int i;
 	int n_szt = n;
 	#else
 	size_t n_szt = (size_t) n;
 	#endif
 
+	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
+	int nthreads_non_const = nthreads;
+
 	if (direction == NULL) {
-		#pragma omp parallel for if( (n > 1e6) && (nthreads >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads)
+		#pragma omp parallel for if( (n > 1e6) && (nthreads_non_const >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads_non_const)
 		for (size_t_for i = 0; i < n_szt; i++) grad[i] /= sqrt(grad_sum_sq[i] + scal_reg);
 	} else {
-		#pragma omp parallel for if( (n > 1e6) && (nthreads >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads)
+		#pragma omp parallel for if( (n > 1e6) && (nthreads_non_const >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads_non_const)
 		for (size_t_for i = 0; i < n_szt; i++) direction[i] = grad[i] / sqrt(grad_sum_sq[i] + scal_reg);
 	}
 }
@@ -961,12 +984,10 @@ int run_oLBFGS(double step_size, double x[], double grad[], double **req, task_e
 
 	/*	set number of BLAS threads for the function.
 		Note: the effect is local so don't move it to the inside of some function */
-	#if defined(mkl_set_num_threads_local)
-		int ignore = mkl_set_num_threads_local(oLBFGS->nthreads);
-	#elif defined(openblas_set_num_threads)
-		openblas_set_num_threads(oLBFGS->nthreads);
-	#elif defined(_OPENMP)
-		omp_set_num_threads(oLBFGS->nthreads);
+	#if defined(_MKL_H_)
+		mkl_set_num_threads_local(adaQN->nthreads);
+	#elif defined(CBLAS_H)
+		openblas_set_num_threads(adaQN->nthreads);
 	#endif
 
 	/* first run: immediately request a gradient */
@@ -1032,12 +1053,10 @@ int run_SQN(double step_size, double x[], double grad[], double hess_vec[], doub
 
 	/*	set number of BLAS threads for the function.
 		Note: the effect is local so don't move it to the inside of some function */
-	#if defined(mkl_set_num_threads_local)
-		int ignore = mkl_set_num_threads_local(SQN->nthreads);
-	#elif defined(openblas_set_num_threads)
-		openblas_set_num_threads(SQN->nthreads);
-	#elif defined(_OPENMP)
-		omp_set_num_threads(SQN->nthreads);
+	#if defined(_MKL_H_)
+		mkl_set_num_threads_local(adaQN->nthreads);
+	#elif defined(CBLAS_H)
+		openblas_set_num_threads(adaQN->nthreads);
 	#endif
 
 	/* first run: immediately request a gradient */
@@ -1159,12 +1178,10 @@ int run_adaQN(double step_size, double x[], double f, double grad[], double **re
 
 	/*	set number of BLAS threads for the function.
 		Note: the effect is local so don't move it to the inside of some function */
-	#if defined(mkl_set_num_threads_local)
-		int ignore = mkl_set_num_threads_local(adaQN->nthreads);
-	#elif defined(openblas_set_num_threads)
+	#if defined(_MKL_H_)
+		mkl_set_num_threads_local(adaQN->nthreads);
+	#elif defined(CBLAS_H)
 		openblas_set_num_threads(adaQN->nthreads);
-	#elif defined(_OPENMP)
-		omp_set_num_threads(adaQN->nthreads);
 	#endif
 
 	/* first run: immediately request a gradient */

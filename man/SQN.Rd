@@ -56,7 +56,8 @@ These gradients are calculated on a larger batch than the regular ones (given by
 (will also reset BFGS memory).}
 
 \item{nthreads}{Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-all of them. Note however that not all the computations can be parallelized.}
+all of them. Note however that not all the computations can be parallelized, and the BLAS backend might use a different
+number of threads.}
 }
 \value{
 an `SQN` object with the user-supplied functions, which can be fit to batches of data

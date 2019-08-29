@@ -136,7 +136,8 @@ partial_fit <- function(optimizer, X, y = NULL, weights = NULL, ...) {
 #' @param check_nan Whether to check for variables becoming NA after each iteration, and reverting the step if they do
 #' (will also reset BFGS memory).
 #' @param nthreads Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-#' all of them. Note however that not all the computations can be parallelized.
+#' all of them. Note however that not all the computations can be parallelized, and the BLAS backend might use a different
+#' number of threads.
 #' @return an `oLBFGS` object with the user-supplied functions, which can be fit to batches of data
 #' through function `partial_fit`, and can produce predictions on new data through function `predict`.
 #' @seealso \link{partial_fit} , \link{predict.stochQN_guided} , \link{oLBFGS_free}
@@ -264,7 +265,8 @@ print.oLBFGS <- function(x, ...) {
 #' @param check_nan Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
 #' (will also reset BFGS memory).
 #' @param nthreads  Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-#' all of them. Note however that not all the computations can be parallelized.
+#' all of them. Note however that not all the computations can be parallelized, and the BLAS backend might use a different
+#' number of threads.
 #' @return an `SQN` object with the user-supplied functions, which can be fit to batches of data
 #' through function `partial_fit`, and can produce predictions on new data through function `predict`.
 #' @seealso \link{partial_fit} , \link{predict.stochQN_guided} , \link{SQN_free}
@@ -414,7 +416,8 @@ print.SQN <- function(x, ...) {
 #' @param check_nan Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
 #' (will also reset BFGS memory).
 #' @param nthreads Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-#' all of them. Note however that not all the computations can be parallelized.
+#' all of them. Note however that not all the computations can be parallelized, and the BLAS backend might use a different
+#' number of threads.
 #' @param X_val Covariates to use as validation set (only used when passing `max_incr`). If not passed, will use
 #' a larger batch of stored data, in the same way as for Hessian-vector products in SQN.
 #' @param y_val Target variable for the covariates to use as validation set (only used when passing `max_incr`).

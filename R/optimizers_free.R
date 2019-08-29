@@ -34,7 +34,8 @@ NULL
 #' @param check_nan Whether to check for variables becoming NA after each iteration, and reverting the step if they do
 #' (will also reset BFGS memory).
 #' @param nthreads Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-#' all of them. Note however that not all the computations can be parallelized.
+#' all of them. Note however that not all the computations can be parallelized, and the BLAS backend might use a different
+#' number of threads.
 #' @return An `oLBFGS_free` object, which can be used through functions `update_gradient` and `run_oLBFGS_free`
 #' @seealso \link{update_gradient} , \link{run_oLBFGS_free}
 #' @references \itemize{ \item Schraudolph, N.N., Yu, J. and Guenter, S., 2007, March.
@@ -153,7 +154,8 @@ oLBFGS_free <- function(mem_size = 10, hess_init = NULL, min_curvature = 1e-4,
 #' @param check_nan Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
 #' (will also reset BFGS memory).
 #' @param nthreads Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-#' all of them. Note however that not all the computations can be parallelized.
+#' all of them. Note however that not all the computations can be parallelized, and the BLAS backend might use a different
+#' number of threads.
 #' @return An `SQN_free` object, which can be used through functions `update_gradient`, `update_hess_vec`,
 #' and `run_SQN_free`
 #' @seealso \link{update_gradient} , \link{update_hess_vec} , \link{run_oLBFGS_free}
@@ -287,7 +289,8 @@ SQN_free <- function(mem_size = 10, bfgs_upd_freq = 20, min_curvature = 1e-4, y_
 #' @param check_nan Whether to check for variables becoming NaN after each iteration, and reverting the step if they do
 #' (will also reset BFGS and Fisher memory).
 #' @param nthreads Number of parallel threads to use. If set to -1, will determine the number of available threads and use
-#' all of them. Note however that not all the computations can be parallelized.
+#' all of them. Note however that not all the computations can be parallelized, and the BLAS backend might use a different
+#' number of threads.
 #' @return An `adaQN_free` object, which can be used through functions `update_gradient`, `update_fun`, and `run_adaQN_free`
 #' @seealso \link{update_gradient} , \link{update_fun} , \link{run_adaQN_free}
 #' @references \itemize{ \item Keskar, N.S. and Berahas, A.S., 2016, September.
