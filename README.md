@@ -76,9 +76,8 @@ python setup.py install
 
 * R:
 ```r
-devtools::install_github("david-cortes/stochQN")
+install.packages("stochQN")
 ```
-(Coming to CRAN soon)
 
 * C and C++:
 ```
@@ -271,7 +270,7 @@ For usage in C see file [c_rosen.c](https://www.github.com/david-cortes/stochQN/
 
 Python documentation is available at [ReadTheDocs](https://stochqn.readthedocs.io/en/latest/).
 
-R documentation is built into the package (e.g. you can try `help(stochQN::adaQN)`, `help(stochQN::adaQN_free)`) - PDF coming to CRAN soon.
+R documentation is built into the package (e.g. you can try `help(stochQN::adaQN)`, `help(stochQN::adaQN_free)`) - PDF available at [CRAN](https://cran.r-project.org/web/packages/stochQN/index.html).
 
 C/C++ documentation is available in the header file [include/stochqn.h](https://www.github.com/david-cortes/stochQN/blob/master/include/stochqn.h).
 
