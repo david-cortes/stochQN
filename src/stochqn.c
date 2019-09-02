@@ -90,6 +90,8 @@ extern "C" {
 #ifdef __cplusplus
 	#if defined(__GNUG__) || defined(__GNUC__) || defined(_MSC_VER) || defined(__clang__) || defined(__INTEL_COMPILER)
 		#define restrict __restrict
+	#else
+		#define restrict 
 	#endif
 #elif defined(_MSC_VER)
 	#define restrict __restrict
