@@ -2,7 +2,7 @@ Package: stochQN
 Type: Package
 Title: Stochastic Limited Memory Quasi-Newton Optimizers
 Version: 0.1.2
-Date: 2019-09-02
+Date: 2019-09-03
 Author: David Cortes
 Maintainer: David Cortes <david.cortes.rivera@gmail.com>
 URL: https://github.com/david-cortes/stochQN
