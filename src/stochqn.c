@@ -53,10 +53,6 @@
 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* Standard headers */
 #include <stdlib.h>
 #include <string.h>
@@ -140,8 +136,11 @@ extern "C" {
 /*	--------------- End of preprocessor definitions ---------------	*/
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*	--------------- General-purpose helpers ---------------	*/
-static inline void copy_arr(const double src[restrict], double dest[restrict], const int n, const int nthreads)
+static inline void copy_arr(const double *restrict src, double *restrict dest, const int n, const int nthreads)
 {
 	/* Note: don't use BLAS dcopy as it's actually much slower */
 	#if defined(_OPENMP)
@@ -194,7 +193,7 @@ static inline void set_to_zero(double arr[], const int n, const int nthreads)
 	#endif
 }
 
-static inline void multiply_elemwise(double inout[restrict], const double other[restrict], const int n, const int nthreads)
+static inline void multiply_elemwise(double *restrict inout, const double *restrict other, const int n, const int nthreads)
 {
 	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64)) /* OpenMP < 3.0 */
 	int i;
@@ -210,7 +209,7 @@ static inline void multiply_elemwise(double inout[restrict], const double other[
 	for (size_t_for i = 0; i < n_szt; i++) inout[i] *= other[i];
 }
 
-static inline void difference_elemwise(double out[restrict], const double later[restrict], const double earlier[restrict], const int n, const int nthreads)
+static inline void difference_elemwise(double *restrict out, const double *restrict later, const double *restrict earlier, const int n, const int nthreads)
 {
 	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64)) /* OpenMP < 3.0 */
 	int i;
@@ -266,7 +265,7 @@ static inline int check_inf_nan(const double arr[], const int n, const int nthre
 	return 0;
 }
 
-static inline void add_to_sum(const double new_values[restrict], double sum_arr[restrict], const size_t n, const int nthreads)
+static inline void add_to_sum(const double *restrict new_values, double *restrict sum_arr, const size_t n, const int nthreads)
 {
 	/* Note: daxpy in MKL is actually slower than this */
 
@@ -718,7 +717,7 @@ static inline void approx_inv_hess_grad(double grad[], int n, double H0[], doubl
 	n						: number of variables (dimensionality of 'x')
 	nthreads				: number of parallel threads to use
 */
-static inline void update_sum_sq(double grad[restrict], double grad_sum_sq[restrict], double rmsprop_weight, int n, int nthreads)
+static inline void update_sum_sq(double *restrict grad, double *restrict grad_sum_sq, double rmsprop_weight, int n, int nthreads)
 {
 	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64))
 	int n_szt = n;
@@ -760,7 +759,7 @@ static inline void update_sum_sq(double grad[restrict], double grad_sum_sq[restr
 							  (pass 0 for AdaGrad init)
 	num_threads				: number of parallel threads to use
 */
-static inline void diag_rescal(double direction[restrict], double grad[restrict], double grad_sum_sq[restrict],
+static inline void diag_rescal(double *restrict direction, double *restrict grad, double *restrict grad_sum_sq,
 	int n, double scal_reg, double rmsprop_weight, int nthreads)
 {
 	update_sum_sq(grad, grad_sum_sq, rmsprop_weight, n, nthreads);
@@ -940,15 +939,9 @@ static inline void update_y_fisher(fisher_mem *fisher_memory, bfgs_mem *bfgs_mem
 	double *s = bfgs_memory->s_mem + bfgs_memory->mem_st_ix * n;
 	double *y = bfgs_memory->y_mem + bfgs_memory->mem_st_ix * n;
 	
-	#if defined(CBLAS_ORDER) && defined(CBLAS_TRANSPOSE)
 	CBLAS_ORDER c_ord = CblasRowMajor;
 	CBLAS_TRANSPOSE trans_no = CblasNoTrans;
 	CBLAS_TRANSPOSE trans_yes = CblasTrans;
-	#else
-	int c_ord = 101;
-	int trans_no = 111;
-	int trans_yes = 112;
-	#endif
 
 	cblas_dgemv(c_ord, trans_no, fisher_memory->mem_used, n, 1,
 		fisher_memory->F, n, s, 1, 0, fisher_memory->buffer_y, 1);
