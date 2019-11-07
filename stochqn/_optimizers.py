@@ -489,9 +489,9 @@ class oLBFGS(_StochQN):
 
 	References
 	----------
-	Schraudolph, N.N., Yu, J. and Günter, S., 2007, March.
-	"A stochastic quasi-Newton method for online convex optimization."
-	In Artificial Intelligence and Statistics (pp. 436-443).
+	.. [1] Schraudolph, N.N., Yu, J. and Günter, S., 2007, March.
+	       "A stochastic quasi-Newton method for online convex optimization."
+	       In Artificial Intelligence and Statistics (pp. 436-443).
 	"""
 
 	def __init__(self, x0, grad_fun, obj_fun=None, pred_fun=None, batches_per_epoch=25, step_size=1e-3, decr_step_size="auto",
@@ -603,10 +603,10 @@ class SQN(_StochQN):
 
 	References
 	----------
-	[1] Byrd, R.H., Hansen, S.L., Nocedal, J. and Singer, Y., 2016. "A stochastic quasi-Newton method for large-scale optimization."
-		SIAM Journal on Optimization, 26(2), pp.1008-1031.
-	[2] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7)
-		Springer Science, 35(67-68), p.7.
+	.. [1] Byrd, R.H., Hansen, S.L., Nocedal, J. and Singer, Y., 2016. "A stochastic quasi-Newton method for large-scale optimization."
+		   SIAM Journal on Optimization, 26(2), pp.1008-1031.
+	.. [2] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7)
+		   Springer Science, 35(67-68), p.7.
 	"""
 
 	def __init__(self, x0, grad_fun, obj_fun=None, hess_vec_fun=None, pred_fun=None, batches_per_epoch=25, step_size=1e-3, decr_step_size="auto",
@@ -736,10 +736,10 @@ class adaQN(_StochQN):
 
 	References
 	----------
-	[1] Keskar, N.S. and Berahas, A.S., 2016, September. "adaQN: An Adaptive Quasi-Newton Algorithm for Training RNNs."
-		In Joint European Conference on Machine Learning and Knowledge Discovery in Databases (pp. 1-16). Springer, Cham.
-	[2] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7)
-		Springer Science, 35(67-68), p.7.
+	.. [1] Keskar, N.S. and Berahas, A.S., 2016, September. "adaQN: An Adaptive Quasi-Newton Algorithm for Training RNNs."
+		   In Joint European Conference on Machine Learning and Knowledge Discovery in Databases (pp. 1-16). Springer, Cham.
+	.. [2] Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch 7)
+		   Springer Science, 35(67-68), p.7.
 	"""
 		
 	def __init__(self, x0, grad_fun, obj_fun=None, pred_fun=None, batches_per_epoch=25, step_size=1e-1, decr_step_size=None,
