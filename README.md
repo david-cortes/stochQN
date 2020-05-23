@@ -59,15 +59,11 @@ Comparison to first-order methods in BibTeX dataset (Logistic Regression with mu
 ## Installation
 
 * Python:
+
+Linux, MacOS, Windows depending on `setuptools`:
 ```pip install stochqn```
 
-In case the following error is encountered in Windows systems:
-```
-ValueError: underlying buffer has been detached
-Exception ignored in: <_io.TextIOWrapper mode='w' encoding='cp1252'>
-ValueError: underlying buffer has been detached
-```
-It can also be installed like this:
+Windows with unlucky `setuptools`:
 ```
 git clone https://www.github.com/david-cortes/stochQN.git
 cd stochQN
@@ -100,7 +96,7 @@ The C/C++ versions can also be used directly from Cython and Rcpp - the package 
 
 Optimizers can be used in three ways:
 1. (Python, R) As a scikit-learn-like API (S3 object in R) in which you supply a starting point `x0`, gradient evaluation function and other functions as required (objective function and/or Hessian-vector function, depending on the optimizer and parameters used), which are then fit to data (X, y, sample_weights) passed in methods `fit` (Python-only) and/or `partial_fit`.
-2. (Python) As a Tensorflow external optimizer.
+2. (**Deprecated**) (Python) As a Tensorflow external optimizer (will only work with old TFv1, package will not be updated to work with TF2).
 3. (Python, R, C, C++) As a free-mode optimizer that is only interacted with by running a function (method in Python and C++) that modifies the variables in-place and returns a request with the next calculation required by the optimizer (gradient in next batch, gradient in same batch, objective in validation set, Hessian-vector in large batch, gradient in large batch), along with the variable values on which to calculate them, the results of which are then supplied to the optimizer and the optimization function run again, repeating until convergence.
 
 Also included is a logistic regression module (`StochasticLogisticRegression` in Python, `stochastic.logistic.regression` in R) with the same API as scikit-learn's.
@@ -248,10 +244,10 @@ for i in range(20):
 		X_batch = X[i*85 : (i+1)*85]
 		y_batch = y[i*85 : (i+1)*85]
 		if req["task"] == "calc_grad":
-			grad = grad_fun(w0, X, y, reg_param=1.0)
+			grad = grad_fun(w0, X_batch, y, reg_param=1.0)
 			optimizer.update_gradient(grad)
 		elif req["task"] == "calc_grad_same_batch":
-			grad = grad_fun(w0, X, y, reg_param=1.0)
+			grad = grad_fun(w0, X_batch, y, reg_param=1.0)
 			optimizer.update_gradient(grad)
 
 		req = optimizer.run_optimizer(x=w0, step_size=1e-5)

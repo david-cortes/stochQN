@@ -979,14 +979,6 @@ int run_oLBFGS(double step_size, double x[], double grad[], double **req, task_e
 {
 	*iter_info = no_problems_encountered;
 
-	/*	set number of BLAS threads for the function.
-		Note: the effect is local so don't move it to the inside of some function */
-	#if defined(_MKL_H_)
-		mkl_set_num_threads_local(adaQN->nthreads);
-	#elif defined(CBLAS_H)
-		openblas_set_num_threads(adaQN->nthreads);
-	#endif
-
 	/* first run: immediately request a gradient */
 	if (oLBFGS->section == 0)
 	{
@@ -1047,14 +1039,6 @@ int run_SQN(double step_size, double x[], double grad[], double hess_vec[], doub
 {
 	*iter_info = no_problems_encountered;
 	int return_value = 0;
-
-	/*	set number of BLAS threads for the function.
-		Note: the effect is local so don't move it to the inside of some function */
-	#if defined(_MKL_H_)
-		mkl_set_num_threads_local(adaQN->nthreads);
-	#elif defined(CBLAS_H)
-		openblas_set_num_threads(adaQN->nthreads);
-	#endif
 
 	/* first run: immediately request a gradient */
 	if (SQN->section == 0)
@@ -1172,14 +1156,6 @@ int run_adaQN(double step_size, double x[], double f, double grad[], double **re
 {
 	*iter_info = no_problems_encountered;
 	int return_value = 0;
-
-	/*	set number of BLAS threads for the function.
-		Note: the effect is local so don't move it to the inside of some function */
-	#if defined(_MKL_H_)
-		mkl_set_num_threads_local(adaQN->nthreads);
-	#elif defined(CBLAS_H)
-		openblas_set_num_threads(adaQN->nthreads);
-	#endif
 
 	/* first run: immediately request a gradient */
 	if (adaQN->section == 0)
