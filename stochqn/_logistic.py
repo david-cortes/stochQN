@@ -1,7 +1,7 @@
 import numpy as np, warnings
 from stochqn._optimizers import oLBFGS, SQN, adaQN, _StochQN, _step_size_const
-from sklearn.linear_model.logistic import _logistic_loss_and_grad, _logistic_grad_hess
-from sklearn.linear_model.logistic import _multinomial_loss_grad, _multinomial_grad_hess
+from sklearn.linear_model._logistic import _logistic_loss_and_grad, _logistic_grad_hess
+from sklearn.linear_model._logistic import _multinomial_loss_grad, _multinomial_grad_hess
 from scipy.sparse import isspmatrix
 
 def _grad_fun_multi(w, X, y, sample_weight=None, reg_param=0):

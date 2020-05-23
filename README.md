@@ -106,7 +106,7 @@ Also included is a logistic regression module (`StochasticLogisticRegression` in
 ```python
 import numpy as np
 from stochqn import oLBFGS
-from sklearn.linear_model.logistic import _logistic_loss_and_grad
+from sklearn.linear_model._logistic import _logistic_loss_and_grad
 from sklearn.datasets import load_digits
 
 def obj_fun(w, X, y, sample_weight=None, reg_param=1.0):
