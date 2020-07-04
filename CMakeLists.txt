@@ -9,8 +9,11 @@ set(CMAKE_BUILD_TYPE Release)
 # set(CUSTOM_BLAS "/path/to/mkl/libmkl_rt.so")
 set(CUSTOM_BLAS false)
 
-file(GLOB SOURCES "src/*.c")
-add_library(stochqn SHARED ${SOURCES})
+# If you want to compile for 'float' type, change this to USE_FLOAT
+add_compile_definitions(USE_DOUBLE)
+
+set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/stochqn.c)
+add_library(stochqn SHARED ${SRC_FILES})
 
 ## This is taken from Armadillo: https://gitlab.com/conradsnicta/armadillo-code
 if (NOT CUSTOM_BLAS)

@@ -28,7 +28,7 @@
 	
 	BSD 2-Clause License
 
-	Copyright (c) 2019, David Cortes
+	Copyright (c) 2020, David Cortes
 	All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without
@@ -133,6 +133,8 @@
 
 #define x_avg x_sum /* this is to keep track of when the sum array has been divided */
 
+#define min2(a, b) (((a) < (b))? (a) : (b))
+
 /*	--------------- End of preprocessor definitions ---------------	*/
 
 
@@ -140,60 +142,58 @@
 extern "C" {
 #endif
 /*	--------------- General-purpose helpers ---------------	*/
-static inline void copy_arr(const double *restrict src, double *restrict dest, const int n, const int nthreads)
+static inline void copy_arr(const real_t *restrict src, real_t *restrict dest, const int n, const int nthreads)
 {
 	/* Note: don't use BLAS dcopy as it's actually much slower */
 	#if defined(_OPENMP)
 
-	#if (_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64) /* OpenMP < 3.0 */
 	int i;
-	#endif
 	int chunk_size = n / nthreads;
 	int remainder = n % nthreads;
 
 	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
-	int nthreads_non_const = nthreads;
+	int nthreads_non_const = min2(nthreads, 2);
+	/* Note: on x86, using more than 2 threads will end up making it slower */
 
 	#pragma omp parallel for schedule(static, 1) firstprivate(src, dest, chunk_size, nthreads) num_threads(nthreads_non_const)
-	for (size_t_for i = 0; i < nthreads; i++){
-		memcpy(dest + i * chunk_size, src + i * chunk_size, sizeof(double) * chunk_size);
+	for (i = 0; i < nthreads; i++){
+		memcpy(dest + i * chunk_size, src + i * chunk_size, sizeof(real_t) * chunk_size);
 	}
 	if (remainder > 0){
-		memcpy(dest + nthreads * chunk_size, src + nthreads * chunk_size, sizeof(double) * remainder);
+		memcpy(dest + nthreads * chunk_size, src + nthreads * chunk_size, sizeof(real_t) * remainder);
 	}
 
 	#else
-	memcpy(dest, src, sizeof(double) * n);
+	memcpy(dest, src, sizeof(real_t) * n);
 	#endif
 }
 
-static inline void set_to_zero(double arr[], const int n, const int nthreads)
+static inline void set_to_zero(real_t arr[], const int n, const int nthreads)
 {
 
 	#if defined(_OPENMP)
 
-	#if (_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64) /* OpenMP < 3.0 */
 	int i;
-	#endif
 	int chunk_size = n / nthreads;
 	int remainder = n % nthreads;
 	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
-	int nthreads_non_const = nthreads;
+	int nthreads_non_const = min2(nthreads, 2);
+	/* Note: on x86 CPUs, using more than 2 threads will make it slower */
 
 	#pragma omp parallel for schedule(static, 1) firstprivate(arr, chunk_size, nthreads) num_threads(nthreads_non_const)
-	for (size_t_for i = 0; i < nthreads; i++){
-		memset(arr + i * chunk_size, 0, sizeof(double) * chunk_size);
+	for (i = 0; i < nthreads; i++){
+		memset(arr + i * chunk_size, 0, sizeof(real_t) * chunk_size);
 	}
 	if (remainder > 0){
-		memset(arr + nthreads * chunk_size, 0, sizeof(double) * remainder);
+		memset(arr + nthreads * chunk_size, 0, sizeof(real_t) * remainder);
 	}
 
 	#else
-	memset(arr, 0, sizeof(double) * n);
+	memset(arr, 0, sizeof(real_t) * n);
 	#endif
 }
 
-static inline void multiply_elemwise(double *restrict inout, const double *restrict other, const int n, const int nthreads)
+static inline void multiply_elemwise(real_t *restrict inout, const real_t *restrict other, const int n, const int nthreads)
 {
 	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64)) /* OpenMP < 3.0 */
 	int i;
@@ -205,11 +205,11 @@ static inline void multiply_elemwise(double *restrict inout, const double *restr
 	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
 	int nthreads_non_const = nthreads;
 
-	#pragma omp parallel for if((n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(inout, other, n_szt) num_threads(nthreads_non_const)
+	#pragma omp parallel for if((n > 1e7) && (nthreads > 4)) schedule(static) firstprivate(inout, other, n_szt) num_threads(nthreads_non_const)
 	for (size_t_for i = 0; i < n_szt; i++) inout[i] *= other[i];
 }
 
-static inline void difference_elemwise(double *restrict out, const double *restrict later, const double *restrict earlier, const int n, const int nthreads)
+static inline void difference_elemwise(real_t *restrict out, const real_t *restrict later, const real_t *restrict earlier, const int n, const int nthreads)
 {
 	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64)) /* OpenMP < 3.0 */
 	int i;
@@ -221,11 +221,11 @@ static inline void difference_elemwise(double *restrict out, const double *restr
 	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
 	int nthreads_non_const = nthreads;
 	
-	#pragma omp parallel for if( (n > 1e6) && (nthreads > 4)) schedule(static) firstprivate(n_szt, out, later, earlier) num_threads(nthreads_non_const)
+	#pragma omp parallel for if( (n > 1e7) && (nthreads > 4)) schedule(static) firstprivate(n_szt, out, later, earlier) num_threads(nthreads_non_const)
 	for (size_t_for i = 0; i < n_szt; i++) out[i] = later[i] - earlier[i];
 }
 
-static inline int check_inf_nan(const double arr[], const int n, const int nthreads)
+static inline int check_inf_nan(const real_t arr[], const int n, const int nthreads)
 {
 
 	size_t n_szt = (size_t) n;
@@ -245,12 +245,12 @@ static inline int check_inf_nan(const double arr[], const int n, const int nthre
 		for (size_t i = 0; i < n_szt; i++){
 			if (isinf(arr[i])){
 				is_wrong = 1;
-				#pragma omp cancel for
+				// #pragma omp cancel for
 			}
 
 			if (isnan(arr[i])){
 				is_wrong = 1;
-				#pragma omp cancel for
+				// #pragma omp cancel for
 			}
 		}
 	} else
@@ -265,7 +265,7 @@ static inline int check_inf_nan(const double arr[], const int n, const int nthre
 	return 0;
 }
 
-static inline void add_to_sum(const double *restrict new_values, double *restrict sum_arr, const size_t n, const int nthreads)
+static inline void add_to_sum(const real_t *restrict new_values, real_t *restrict sum_arr, const size_t n, const int nthreads)
 {
 	/* Note: daxpy in MKL is actually slower than this */
 
@@ -279,14 +279,14 @@ static inline void add_to_sum(const double *restrict new_values, double *restric
 	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
 	int nthreads_non_const = nthreads;
 
-	#pragma omp parallel for if((n > 1e6) && (nthreads_non_const > 4)) schedule(static) firstprivate(sum_arr, new_values, n_szt) num_threads(nthreads_non_const)
+	#pragma omp parallel for if((n > 1e7) && (nthreads_non_const > 4)) schedule(static) firstprivate(sum_arr, new_values, n_szt) num_threads(nthreads_non_const)
 	for (size_t_for i = 0; i < n_szt; i++) sum_arr[i] += new_values[i];
 }
 
-static inline void average_from_sum(double arr_sum[], const size_t n_summed, const int n)
+static inline void average_from_sum(real_t arr_sum[], const size_t n_summed, const int n)
 {
 	if (n_summed > 1){
-		cblas_dscal(n, 1 / (double) n_summed, arr_sum, 1);
+		cblas_tscal(n, 1 / (real_t) n_summed, arr_sum, 1);
 	}
 }
 /*	--------------- End of general-purpose helpers ---------------	*/
@@ -297,21 +297,21 @@ static inline void average_from_sum(double arr_sum[], const size_t n_summed, con
 	you'll probably want to skip it.	*/
 
 /*	--------- Beginning of initializers, deallocators, and updaters --------	*/
-bfgs_mem* initialize_bfgs_mem(const size_t mem_size, const int n, const double min_curvature, const double y_reg, const size_t upd_freq)
+bfgs_mem* initialize_bfgs_mem(const size_t mem_size, const int n, const real_t min_curvature, const real_t y_reg, const size_t upd_freq)
 {
-	double *s_bak;
-	double *y_bak;
+	real_t *s_bak;
+	real_t *y_bak;
 	if (min_curvature > 0){
-		s_bak = (double*) malloc(sizeof(double) * n);
-		y_bak = (double*) malloc(sizeof(double) * n);
+		s_bak = (real_t*) malloc(sizeof(real_t) * n);
+		y_bak = (real_t*) malloc(sizeof(real_t) * n);
 	} else {
 		s_bak = NULL;
 		y_bak = NULL;
 	}
-	double *s_mem = (double*) malloc(sizeof(double) * n * mem_size);
-	double *y_mem = (double*) malloc(sizeof(double) * n * mem_size);
-	double *buffer_rho = (double*) malloc(sizeof(double) * mem_size);
-	double *buffer_alpha = (double*) malloc(sizeof(double) * mem_size);
+	real_t *s_mem = (real_t*) malloc(sizeof(real_t) * n * mem_size);
+	real_t *y_mem = (real_t*) malloc(sizeof(real_t) * n * mem_size);
+	real_t *buffer_rho = (real_t*) malloc(sizeof(real_t) * mem_size);
+	real_t *buffer_alpha = (real_t*) malloc(sizeof(real_t) * mem_size);
 	bfgs_mem *out = (bfgs_mem*) malloc(sizeof(bfgs_mem));
 	out->s_mem = s_mem;
 	out->y_mem = y_mem;
@@ -341,8 +341,8 @@ void dealloc_bfgs_mem(bfgs_mem *bfgs_memory)
 
 fisher_mem* initialize_fisher_mem(const size_t mem_size, const int n)
 {
-	double *F = (double*) malloc(sizeof(double) * n * mem_size);
-	double *buffer_y = (double*) malloc(sizeof(double) * mem_size);
+	real_t *F = (real_t*) malloc(sizeof(real_t) * n * mem_size);
+	real_t *buffer_y = (real_t*) malloc(sizeof(real_t) * mem_size);
 	fisher_mem *out = (fisher_mem*) malloc(sizeof(fisher_mem));
 	out->F = F;
 	out->buffer_y = buffer_y;
@@ -461,11 +461,11 @@ void dealloc_adaQN(workspace_adaQN *adaQN)
 	free(adaQN);
 }
 
-workspace_oLBFGS* initialize_oLBFGS(const int n, const size_t mem_size, const double hess_init,
-	const double y_reg, const double min_curvature, const int check_nan, const int nthreads)
+workspace_oLBFGS* initialize_oLBFGS(const int n, const size_t mem_size, const real_t hess_init,
+	const real_t y_reg, const real_t min_curvature, const int check_nan, const int nthreads)
 {
 	bfgs_mem *bfgs_memory = initialize_bfgs_mem(mem_size, n, min_curvature, y_reg, 1);
-	double *grad_prev = (double*) malloc(sizeof(double) * n);
+	real_t *grad_prev = (real_t*) malloc(sizeof(real_t) * n);
 
 	workspace_oLBFGS *out = (workspace_oLBFGS*) malloc(sizeof(workspace_oLBFGS));
 	out->bfgs_memory = bfgs_memory;
@@ -480,15 +480,15 @@ workspace_oLBFGS* initialize_oLBFGS(const int n, const size_t mem_size, const do
 	return out;
 }
 
-workspace_SQN* initialize_SQN(const int n, const size_t mem_size, const size_t bfgs_upd_freq, const double min_curvature,
-	const int use_grad_diff, const double y_reg, const int check_nan, const int nthreads)
+workspace_SQN* initialize_SQN(const int n, const size_t mem_size, const size_t bfgs_upd_freq, const real_t min_curvature,
+	const int use_grad_diff, const real_t y_reg, const int check_nan, const int nthreads)
 {
-	double *grad_prev;
-	if (use_grad_diff){grad_prev = (double*) malloc(sizeof(double) * n);}
+	real_t *grad_prev;
+	if (use_grad_diff){grad_prev = (real_t*) malloc(sizeof(real_t) * n);}
 	else {grad_prev = NULL;}
 	bfgs_mem *bfgs_memory = initialize_bfgs_mem(mem_size, n, min_curvature, y_reg, bfgs_upd_freq);
-	double *x_sum = (double*) calloc(n, sizeof(double));
-	double *x_avg_prev = (double*) malloc(sizeof(double) * n);
+	real_t *x_sum = (real_t*) calloc(n, sizeof(real_t));
+	real_t *x_avg_prev = (real_t*) malloc(sizeof(real_t) * n);
 
 	workspace_SQN* out = (workspace_SQN*) malloc(sizeof(workspace_SQN));
 	out->bfgs_memory = bfgs_memory;
@@ -506,23 +506,23 @@ workspace_SQN* initialize_SQN(const int n, const size_t mem_size, const size_t b
 }
 
 workspace_adaQN* initialize_adaQN(const int n, const size_t mem_size, const size_t fisher_size, const size_t bfgs_upd_freq,
-	const double max_incr, const double min_curvature, const double scal_reg, const double rmsprop_weight,
-	const int use_grad_diff, const double y_reg, const int check_nan, const int nthreads)
+	const real_t max_incr, const real_t min_curvature, const real_t scal_reg, const real_t rmsprop_weight,
+	const int use_grad_diff, const real_t y_reg, const int check_nan, const int nthreads)
 {
 	bfgs_mem *bfgs_memory = initialize_bfgs_mem(mem_size, n, min_curvature, y_reg, bfgs_upd_freq);
 	fisher_mem *fisher_memory;
-	double *grad_prev;
+	real_t *grad_prev;
 	if (use_grad_diff){
 		fisher_memory = NULL;
-		grad_prev = (double*) malloc(sizeof(double) * n);
+		grad_prev = (real_t*) malloc(sizeof(real_t) * n);
 	} else {
 		fisher_memory = initialize_fisher_mem(fisher_size, n);
 		grad_prev = NULL;
 	}
-	double *H0 = (double*) malloc(sizeof(double) * n);
-	double *x_sum = (double*) calloc(n, sizeof(double));
-	double *x_avg_prev = (double*) malloc(sizeof(double) * n);
-	double *grad_sum_sq = (double*) calloc(n, sizeof(double));
+	real_t *H0 = (real_t*) malloc(sizeof(real_t) * n);
+	real_t *x_sum = (real_t*) calloc(n, sizeof(real_t));
+	real_t *x_avg_prev = (real_t*) malloc(sizeof(real_t) * n);
+	real_t *grad_sum_sq = (real_t*) calloc(n, sizeof(real_t));
 
 	workspace_adaQN *out = (workspace_adaQN*) malloc(sizeof(workspace_adaQN));
 	out->bfgs_memory = bfgs_memory;
@@ -578,7 +578,7 @@ static inline void incr_fisher_counters(fisher_mem *fisher_memory)
 	fisher_memory->mem_used = ((fisher_memory->mem_used + 1) >= fisher_memory->mem_size)? fisher_memory->mem_size : (fisher_memory->mem_used + 1);
 }
 
-static inline void add_to_fisher_mem(double grad[], fisher_mem *fisher_memory, const int n, const int nthreads)
+static inline void add_to_fisher_mem(real_t grad[], fisher_mem *fisher_memory, const int n, const int nthreads)
 {
 	if (fisher_memory != NULL){
 		copy_arr(grad, fisher_memory->F + fisher_memory->mem_st_ix * n, n, nthreads);
@@ -603,7 +603,7 @@ static inline void rollback_corr_pair(bfgs_mem *bfgs_memory, const int n, info_e
 	}	
 }
 
-static inline void archive_x_avg(double x_avg[], double x_avg_prev[], const int n, const int nthreads)
+static inline void archive_x_avg(real_t x_avg[], real_t x_avg_prev[], const int n, const int nthreads)
 {
 	copy_arr(x_avg, x_avg_prev, n, nthreads);
 	set_to_zero(x_sum, n, nthreads); /* x_avg is aliased to x_sum */
@@ -623,24 +623,24 @@ static inline void archive_x_avg(double x_avg[], double x_avg_prev[], const int 
 	For the variable names, refer to:
 	Wright, S. and Nocedal, J., 1999. "Numerical optimization." (ch. 7)
 	
-	grad (in, out)	: double[n]
+	grad (in, out)	: real_t[n]
 		Gradient for the current values of the variables - the computed search
 		direction will be written to this same array, overwriting the gradient.
 	n : int
 		Number of variables (dimensionality of 'x')
-	H0 : double[n] or NULL
+	H0 : real_t[n] or NULL
 		Initial matrix H0 (diagonal only) from which H^-1 is updated.
 		If passing NULL here and zero to 'h0', will use a scalar value as suggested in the book
 		"Numerical optimization." (Wright & Nocedal)
-	h0 : double
+	h0 : real_t
 		number to which to initialize the diagonal H0.
 		If passing zero here and NULL to 'H0', will use a scalar value as suggested in the book
 		"Numerical optimization." (Wright & Nocedal)
-	y_mem : double[mem_size, n]
+	y_mem : real_t[mem_size, n]
 		'y' correction variables.
 		These shall be ordered from earliest to latest, with the earliest vector
 		not necessarily at the first position.
-	s_mem : double[mem_size, n]
+	s_mem : real_t[mem_size, n]
 		's' correction variables.
 		These shall be ordered from earliest to latest, with the earliest vector
 		not necessarily at the first position.
@@ -651,20 +651,20 @@ static inline void archive_x_avg(double x_avg[], double x_avg_prev[], const int 
 	mem_st_ix : size_t
 		Position in 'y_mem' and 's_mem' at which the earliest vector is stored, with later elements
 		following onwards, continuing at the beginning after position 'mem_used' if this is not zero.
-	buffer_rho : double[mem_size]
+	buffer_rho : real_t[mem_size]
 		Temporary array in which to store the computed rho values.
-	buffer_alpha : double[mem_size]
+	buffer_alpha : real_t[mem_size]
 		Temporary array in which to store the computed alpha values.
 	nthreads : int
 		Number of parallel threads to use - most of the work is done on a BLAS library
 		(and the threads for it are set elsewhere), but for very large problems, passes
 		over the grad/out array can also be parallelized.
 */
-static inline void approx_inv_hess_grad(double grad[], int n, double H0[], double h0,
-	double y_mem[], double s_mem[], size_t mem_size, size_t mem_used, size_t mem_st_ix,
-	double buffer_rho[], double buffer_alpha[], int nthreads)
+static inline void approx_inv_hess_grad(real_t grad[], int n, real_t H0[], real_t h0,
+	real_t y_mem[], real_t s_mem[], size_t mem_size, size_t mem_used, size_t mem_st_ix,
+	real_t buffer_rho[], real_t buffer_alpha[], int nthreads)
 {
-	double scaling, beta;
+	real_t scaling, beta;
 	size_t i, ipos, last_pos;
 
 	/* backward pass: alpha <- rho * s' q; q <- q - alpha * y */
@@ -673,9 +673,9 @@ static inline void approx_inv_hess_grad(double grad[], int n, double H0[], doubl
 		i = mem_used - ii - 1;
 		ipos = (mem_st_ix + i) % mem_size;
 
-		buffer_rho[i] = 1 / cblas_ddot(n, y_mem + ipos*n, 1, s_mem + ipos*n, 1);
-		buffer_alpha[i] = buffer_rho[i] * cblas_ddot(n, grad, 1, s_mem + ipos*n, 1);
-		cblas_daxpy(n, -buffer_alpha[i], y_mem + ipos*n, 1, grad, 1);
+		buffer_rho[i] = 1 / cblas_tdot(n, y_mem + ipos*n, 1, s_mem + ipos*n, 1);
+		buffer_alpha[i] = buffer_rho[i] * cblas_tdot(n, grad, 1, s_mem + ipos*n, 1);
+		cblas_taxpy(n, -buffer_alpha[i], y_mem + ipos*n, 1, grad, 1);
 	}
 
 	/*	Use a diagonal matrix as a starting point:
@@ -683,9 +683,9 @@ static inline void approx_inv_hess_grad(double grad[], int n, double H0[], doubl
 	if ( (H0 == NULL) && (h0 <= 0) )
 	{
 		last_pos = (mem_st_ix - 1 + mem_used) % mem_size;
-		scaling = cblas_ddot(n, s_mem + last_pos*n, 1, y_mem + last_pos*n, 1)
-				/ cblas_ddot(n, y_mem + last_pos*n, 1, y_mem + last_pos*n, 1);
-		cblas_dscal(n, scaling, grad, 1);
+		scaling = cblas_tdot(n, s_mem + last_pos*n, 1, y_mem + last_pos*n, 1)
+				/ cblas_tdot(n, y_mem + last_pos*n, 1, y_mem + last_pos*n, 1);
+		cblas_tscal(n, scaling, grad, 1);
 	}
 
 	/*	But can also initialize it from values supplied by the user */
@@ -695,15 +695,15 @@ static inline void approx_inv_hess_grad(double grad[], int n, double H0[], doubl
 		if (H0 != NULL) { multiply_elemwise(grad, H0, n, nthreads); }
 
 		/* Use scalar passed by user */
-		else { cblas_dscal(n, h0, grad, 1); }
+		else { cblas_tscal(n, h0, grad, 1); }
 	}
 
 	/* forward pass: beta <- rho * y' * r; r <- r * s * (alpha - beta) */
 	for (size_t i = 0; i < mem_used; i++)
 	{
 		ipos = (mem_st_ix + i) % mem_size;
-		beta = buffer_rho[i] * cblas_ddot(n, y_mem + ipos*n, 1, grad, 1);
-		cblas_daxpy(n, buffer_alpha[i] - beta, s_mem + ipos*n, 1, grad, 1);
+		beta = buffer_rho[i] * cblas_tdot(n, y_mem + ipos*n, 1, grad, 1);
+		cblas_taxpy(n, buffer_alpha[i] - beta, s_mem + ipos*n, 1, grad, 1);
 	}
 }
 
@@ -717,7 +717,7 @@ static inline void approx_inv_hess_grad(double grad[], int n, double H0[], doubl
 	n						: number of variables (dimensionality of 'x')
 	nthreads				: number of parallel threads to use
 */
-static inline void update_sum_sq(double *restrict grad, double *restrict grad_sum_sq, double rmsprop_weight, int n, int nthreads)
+static inline void update_sum_sq(real_t *restrict grad, real_t *restrict grad_sum_sq, real_t rmsprop_weight, int n, int nthreads)
 {
 	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64))
 	int n_szt = n;
@@ -725,7 +725,7 @@ static inline void update_sum_sq(double *restrict grad, double *restrict grad_su
 	#else
 	size_t n_szt = (size_t) n;
 	#endif
-	double weight_new;
+	real_t weight_new;
 
 	/* oracle compilers cannot take 'const int' (CRAN requirement for building in solaris OS) */
 	int nthreads_non_const = nthreads;
@@ -734,14 +734,14 @@ static inline void update_sum_sq(double *restrict grad, double *restrict grad_su
 	if (rmsprop_weight > 0 && rmsprop_weight < 1)
 	{
 		weight_new = 1 - rmsprop_weight;
-		#pragma omp parallel for if( (n > 1e6) && (nthreads_non_const > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq, rmsprop_weight, weight_new) num_threads(nthreads_non_const)
+		#pragma omp parallel for if( (n > 1e7) && (nthreads_non_const > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq, rmsprop_weight, weight_new) num_threads(nthreads_non_const)
 		for (size_t_for i = 0; i < n_szt; i++) grad_sum_sq[i] = rmsprop_weight*grad_sum_sq[i] + weight_new*(grad[i] * grad[i]);
 	}
 	
 	/* AdaGrad update */
 	else 
 	{
-		#pragma omp parallel for if( (n > 1e6) && (nthreads_non_const > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq) num_threads(nthreads_non_const)
+		#pragma omp parallel for if( (n > 1e7) && (nthreads_non_const > 4)) schedule(static) firstprivate(n_szt, grad, grad_sum_sq) num_threads(nthreads_non_const)
 		for (size_t_for i = 0; i < n_szt; i++) grad_sum_sq[i] += grad[i] * grad[i];
 	}
 }
@@ -759,8 +759,8 @@ static inline void update_sum_sq(double *restrict grad, double *restrict grad_su
 							  (pass 0 for AdaGrad init)
 	num_threads				: number of parallel threads to use
 */
-static inline void diag_rescal(double *restrict direction, double *restrict grad, double *restrict grad_sum_sq,
-	int n, double scal_reg, double rmsprop_weight, int nthreads)
+static inline void diag_rescal(real_t *restrict direction, real_t *restrict grad, real_t *restrict grad_sum_sq,
+	int n, real_t scal_reg, real_t rmsprop_weight, int nthreads)
 {
 	update_sum_sq(grad, grad_sum_sq, rmsprop_weight, n, nthreads);
 	#if defined(_OPENMP) && ((_OPENMP < 200801) || defined(_WIN32) || defined(_WIN64))
@@ -774,10 +774,10 @@ static inline void diag_rescal(double *restrict direction, double *restrict grad
 	int nthreads_non_const = nthreads;
 
 	if (direction == NULL) {
-		#pragma omp parallel for if( (n > 1e6) && (nthreads_non_const >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads_non_const)
+		#pragma omp parallel for if( (n > 1e7) && (nthreads_non_const >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads_non_const)
 		for (size_t_for i = 0; i < n_szt; i++) grad[i] /= sqrt(grad_sum_sq[i] + scal_reg);
 	} else {
-		#pragma omp parallel for if( (n > 1e6) && (nthreads_non_const >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads_non_const)
+		#pragma omp parallel for if( (n > 1e7) && (nthreads_non_const >= 4) ) schedule(static) firstprivate(direction, grad_sum_sq, scal_reg, n_szt) num_threads(nthreads_non_const)
 		for (size_t_for i = 0; i < n_szt; i++) direction[i] = grad[i] / sqrt(grad_sum_sq[i] + scal_reg);
 	}
 }
@@ -799,8 +799,8 @@ static inline void diag_rescal(double *restrict direction, double *restrict grad
 	iter_info					: pointer to the indicator on encountered problems
 	nthreads					: number of parallel threads to use
 */
-static inline void take_step(double step_size, int n, double x[], double grad[], bfgs_mem *bfgs_memory,
-	double rmsprop_weight, double H0[], double h0, double grad_sum_sq[], double scal_reg,
+static inline void take_step(real_t step_size, int n, real_t x[], real_t grad[], bfgs_mem *bfgs_memory,
+	real_t rmsprop_weight, real_t H0[], real_t h0, real_t grad_sum_sq[], real_t scal_reg,
 	int check_nan, info_enum *iter_info, int nthreads)
 {
 
@@ -826,7 +826,7 @@ static inline void take_step(double step_size, int n, double x[], double grad[],
 	{
 		if ( check_inf_nan(grad, n, nthreads) ||
 			/* There are also cases in which the search direction is not NaN, but is too large nevertheless */
-			cblas_dnrm2(n, grad, 1) > 1e3 * n )
+			cblas_tnrm2(n, grad, 1) > 1e3 * n )
 		{
 			flush_bfgs_mem(bfgs_memory);
 			*iter_info = search_direction_was_nan;
@@ -835,7 +835,7 @@ static inline void take_step(double step_size, int n, double x[], double grad[],
 	}
 	
 	/* Finally, take step in computed direction */
-	cblas_daxpy(n, -step_size, grad, 1, x, 1);
+	cblas_taxpy(n, -step_size, grad, 1, x, 1);
 	
 }
 
@@ -858,7 +858,7 @@ static inline void take_step(double step_size, int n, double x[], double grad[],
 	bfgs_memory (in, out)	: BFGS memory struct
 	nthreads				: number of parallel threads to use
 */
-static inline void update_s_vector(double x_sum[], double x_avg_prev[], int n, int needs_div, bfgs_mem *bfgs_memory, int nthreads)
+static inline void update_s_vector(real_t x_sum[], real_t x_avg_prev[], int n, int needs_div, bfgs_mem *bfgs_memory, int nthreads)
 {
 	/*	oLBFGS:	s = x - x_prev ----not computed here
 		others:	s = x_avg - x_avg_prev
@@ -883,13 +883,13 @@ static inline void update_s_vector(double x_sum[], double x_avg_prev[], int n, i
 static inline void check_min_curvature(bfgs_mem *bfgs_memory, int n, info_enum *iter_info, int nthreads)
 {
 	/* s^T * y / s^T * s  >  epsilon */
-	double *s = bfgs_memory->s_mem + bfgs_memory->mem_st_ix * n;;
-	double *y = bfgs_memory->y_mem + bfgs_memory->mem_st_ix * n;
-	double curv;
+	real_t *s = bfgs_memory->s_mem + bfgs_memory->mem_st_ix * n;;
+	real_t *y = bfgs_memory->y_mem + bfgs_memory->mem_st_ix * n;
+	real_t curv;
 
 	if (bfgs_memory->min_curvature > 0)
 	{
-		curv = cblas_ddot(n, s, 1, y, 1) / cblas_ddot(n, s, 1, s, 1);
+		curv = cblas_tdot(n, s, 1, y, 1) / cblas_tdot(n, s, 1, s, 1);
 		if (curv <= bfgs_memory->min_curvature)
 		{
 			rollback_corr_pair(bfgs_memory, n, iter_info, nthreads);
@@ -912,15 +912,15 @@ static inline void check_min_curvature(bfgs_mem *bfgs_memory, int n, info_enum *
 	iter_info				: pointer to the indicator on encountered problems
 	nthreads 				: number of parallel threads to use
 */
-static inline void update_y_grad_diff(double grad[], double grad_prev[], bfgs_mem *bfgs_memory, int n, info_enum *iter_info, int nthreads)
+static inline void update_y_grad_diff(real_t grad[], real_t grad_prev[], bfgs_mem *bfgs_memory, int n, info_enum *iter_info, int nthreads)
 {
 	/*	oLBFGS:	y = grad_batch(x) - grad_batch(x_prev) + lambda * s
 		others:	y = grad(x_avg) - grad_prev(x_avg_prev)
 	*/
-	double *s = bfgs_memory->s_mem + bfgs_memory->mem_st_ix * n;;
-	double *y = bfgs_memory->y_mem + bfgs_memory->mem_st_ix * n;
+	real_t *s = bfgs_memory->s_mem + bfgs_memory->mem_st_ix * n;;
+	real_t *y = bfgs_memory->y_mem + bfgs_memory->mem_st_ix * n;
 	difference_elemwise(y, grad, grad_prev, n, nthreads);
-	if (bfgs_memory->y_reg > 0){  cblas_daxpy(n, bfgs_memory->y_reg, s, 1, y, 1);  }
+	if (bfgs_memory->y_reg > 0){  cblas_taxpy(n, bfgs_memory->y_reg, s, 1, y, 1);  }
 
 	check_min_curvature(bfgs_memory, n, iter_info, nthreads);
 }
@@ -936,16 +936,16 @@ static inline void update_y_grad_diff(double grad[], double grad_prev[], bfgs_me
 static inline void update_y_fisher(fisher_mem *fisher_memory, bfgs_mem *bfgs_memory, int n, info_enum *iter_info, int nthreads)
 {
 	/* y = F' (F * s) / |F| */
-	double *s = bfgs_memory->s_mem + bfgs_memory->mem_st_ix * n;
-	double *y = bfgs_memory->y_mem + bfgs_memory->mem_st_ix * n;
+	real_t *s = bfgs_memory->s_mem + bfgs_memory->mem_st_ix * n;
+	real_t *y = bfgs_memory->y_mem + bfgs_memory->mem_st_ix * n;
 	
 	CBLAS_ORDER c_ord = CblasRowMajor;
 	CBLAS_TRANSPOSE trans_no = CblasNoTrans;
 	CBLAS_TRANSPOSE trans_yes = CblasTrans;
 
-	cblas_dgemv(c_ord, trans_no, fisher_memory->mem_used, n, 1,
+	cblas_tgemv(c_ord, trans_no, fisher_memory->mem_used, n, 1,
 		fisher_memory->F, n, s, 1, 0, fisher_memory->buffer_y, 1);
-	cblas_dgemv(c_ord, trans_yes, fisher_memory->mem_used, n, 1 / (double) fisher_memory->mem_used,
+	cblas_tgemv(c_ord, trans_yes, fisher_memory->mem_used, n, 1 / (real_t) fisher_memory->mem_used,
 		fisher_memory->F, n, fisher_memory->buffer_y, 1, 0, y, 1);
 
 	check_min_curvature(bfgs_memory, n, iter_info, nthreads);
@@ -959,7 +959,7 @@ static inline void update_y_fisher(fisher_mem *fisher_memory, bfgs_mem *bfgs_mem
 	n 						: number of variables (dimensionality of 'x')
 	nthreads				: number of parallel threads to use
 */
-static inline void update_y_hessvec(double hess_vec[], bfgs_mem *bfgs_memory, info_enum *iter_info, int n, int nthreads)
+static inline void update_y_hessvec(real_t hess_vec[], bfgs_mem *bfgs_memory, info_enum *iter_info, int n, int nthreads)
 {
 	copy_arr(hess_vec, bfgs_memory->y_mem + bfgs_memory->mem_st_ix * n, n, nthreads);
 	check_min_curvature(bfgs_memory, n, iter_info, nthreads);
@@ -975,7 +975,7 @@ static inline void update_y_hessvec(double hess_vec[], bfgs_mem *bfgs_memory, in
 	is requested externally. Check which part sent you to where you currently are,
 	and where is each part going to send you next.
 */
-int run_oLBFGS(double step_size, double x[], double grad[], double **req, task_enum *task, workspace_oLBFGS *oLBFGS, info_enum *iter_info)
+int run_oLBFGS(real_t step_size, real_t x[], real_t grad[], real_t **req, task_enum *task, workspace_oLBFGS *oLBFGS, info_enum *iter_info)
 {
 	*iter_info = no_problems_encountered;
 
@@ -1003,7 +1003,7 @@ int run_oLBFGS(double step_size, double x[], double grad[], double **req, task_e
 		/* store differences in BFGS memory */
 		if (*iter_info == no_problems_encountered){
 			backup_corr_pair(oLBFGS->bfgs_memory, oLBFGS->n, oLBFGS->nthreads); /* rollback happens on 'update_y_grad_diff' */
-			cblas_dscal(oLBFGS->n, -step_size, grad, 1);
+			cblas_tscal(oLBFGS->n, -step_size, grad, 1);
 			copy_arr(grad, oLBFGS->bfgs_memory->s_mem + oLBFGS->bfgs_memory->mem_st_ix * oLBFGS->n, oLBFGS->n, oLBFGS->nthreads);
 
 			/* request another gradient */
@@ -1035,7 +1035,7 @@ int run_oLBFGS(double step_size, double x[], double grad[], double **req, task_e
 	return -1000;
 }
 
-int run_SQN(double step_size, double x[], double grad[], double hess_vec[], double **req, double **req_vec, task_enum *task, workspace_SQN *SQN, info_enum *iter_info)
+int run_SQN(real_t step_size, real_t x[], real_t grad[], real_t hess_vec[], real_t **req, real_t **req_vec, task_enum *task, workspace_SQN *SQN, info_enum *iter_info)
 {
 	*iter_info = no_problems_encountered;
 	int return_value = 0;
@@ -1152,7 +1152,7 @@ int run_SQN(double step_size, double x[], double grad[], double hess_vec[], doub
 		return return_value;
 }
 
-int run_adaQN(double step_size, double x[], double f, double grad[], double **req, task_enum *task, workspace_adaQN *adaQN, info_enum *iter_info)
+int run_adaQN(real_t step_size, real_t x[], real_t f, real_t grad[], real_t **req, task_enum *task, workspace_adaQN *adaQN, info_enum *iter_info)
 {
 	*iter_info = no_problems_encountered;
 	int return_value = 0;

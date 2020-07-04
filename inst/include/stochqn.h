@@ -28,7 +28,7 @@
 	
 	BSD 2-Clause License
 
-	Copyright (c) 2019, David Cortes
+	Copyright (c) 2020, David Cortes
 	All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without
@@ -59,6 +59,23 @@
 #ifndef STOCHQN_INCLUDE
 #define STOCHQN_INCLUDE 
 
+#if defined(USE_DOUBLE) || !defined(USE_FLOAT)
+	#define real_t double
+	#define cblas_tscal cblas_dscal
+	#define cblas_tdot cblas_ddot
+	#define cblas_taxpy cblas_daxpy
+	#define cblas_tnrm2 cblas_dnrm2
+	#define cblas_tgemv cblas_dgemv
+#else
+	#define real_t float
+	#define cblas_tscal cblas_sscal
+	#define cblas_tdot cblas_sdot
+	#define cblas_taxpy cblas_saxpy
+	#define cblas_tnrm2 cblas_snrm2
+	#define cblas_tgemv cblas_sgemv
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -67,23 +84,23 @@ extern "C" {
 
 /*	Containers and functions for initializing each optimizer as if it were a class */
 typedef struct {
-	double *s_mem;
-	double *y_mem;
-	double *buffer_rho;
-	double *buffer_alpha;
-	double *s_bak;
-	double *y_bak;
+	real_t *s_mem;
+	real_t *y_mem;
+	real_t *buffer_rho;
+	real_t *buffer_alpha;
+	real_t *s_bak;
+	real_t *y_bak;
 	size_t mem_size;
 	size_t mem_used;
 	size_t mem_st_ix;
 	size_t upd_freq; /* L */
-	double y_reg; /* lambda  in oLBFGS*/
-	double min_curvature; /* adaQN: epsilon in main loop */
+	real_t y_reg; /* lambda  in oLBFGS*/
+	real_t min_curvature; /* adaQN: epsilon in main loop */
 } bfgs_mem;
 
 typedef struct {
-	double *F;
-	double *buffer_y;
+	real_t *F;
+	real_t *buffer_y;
 	size_t mem_size;
 	size_t mem_used;
 	size_t mem_st_ix;
@@ -91,8 +108,8 @@ typedef struct {
 
 typedef struct {
 	bfgs_mem *bfgs_memory;
-	double *grad_prev;
-	double hess_init; /* epsilon */
+	real_t *grad_prev;
+	real_t hess_init; /* epsilon */
 	size_t niter;
 	int section; /* do NOT modify!!! */
 	int nthreads;
@@ -102,9 +119,9 @@ typedef struct {
 
 typedef struct {
 	bfgs_mem *bfgs_memory;
-	double *grad_prev;
-	double *x_sum; /* w_bar */
-	double *x_avg_prev;
+	real_t *grad_prev;
+	real_t *x_sum; /* w_bar */
+	real_t *x_avg_prev;
 	int use_grad_diff;
 	size_t niter;
 	int section; /* do NOT modify!!! */
@@ -116,15 +133,15 @@ typedef struct {
 typedef struct {
 	bfgs_mem *bfgs_memory;
 	fisher_mem *fisher_memory;
-	double *H0;
-	double *grad_prev;
-	double *x_sum; /* w_bar */
-	double *x_avg_prev;
-	double *grad_sum_sq;
-	double f_prev; /* can modify if the validation batch is changed */
-	double max_incr; /* gamma */
-	double scal_reg; /* epsilon (in gradient rescaling) */
-	double rmsprop_weight;
+	real_t *H0;
+	real_t *grad_prev;
+	real_t *x_sum; /* w_bar */
+	real_t *x_avg_prev;
+	real_t *grad_sum_sq;
+	real_t f_prev; /* can modify if the validation batch is changed */
+	real_t max_incr; /* gamma */
+	real_t scal_reg; /* epsilon (in gradient rescaling) */
+	real_t rmsprop_weight;
 	int use_grad_diff;
 	size_t niter;
 	int section; /* do NOT modify!!! */
@@ -207,17 +224,17 @@ typedef struct {
 	nthreads
 		number of parallel threads to use (when advantageous to parallelize)
 	*/
-workspace_oLBFGS* initialize_oLBFGS(const int n, const size_t mem_size, const double hess_init, const double y_reg,
-	const double min_curvature, const int check_nan, const int nthreads);
+workspace_oLBFGS* initialize_oLBFGS(const int n, const size_t mem_size, const real_t hess_init, const real_t y_reg,
+	const real_t min_curvature, const int check_nan, const int nthreads);
 void dealloc_oLBFGS(workspace_oLBFGS *oLBFGS);
 
-workspace_SQN* initialize_SQN(const int n, const size_t mem_size, const size_t bfgs_upd_freq, const double min_curvature,
-	const int use_grad_diff, const double y_reg, const int check_nan, const int nthreads);
+workspace_SQN* initialize_SQN(const int n, const size_t mem_size, const size_t bfgs_upd_freq, const real_t min_curvature,
+	const int use_grad_diff, const real_t y_reg, const int check_nan, const int nthreads);
 void dealloc_SQN(workspace_SQN *SQN);
 
 workspace_adaQN* initialize_adaQN(const int n, const size_t mem_size, const size_t fisher_size, const size_t bfgs_upd_freq,
-	const double max_incr, const double min_curvature, const double scal_reg, const double rmsprop_weight,
-	const int use_grad_diff, const double y_reg, const int check_nan, const int nthreads);
+	const real_t max_incr, const real_t min_curvature, const real_t scal_reg, const real_t rmsprop_weight,
+	const int use_grad_diff, const real_t y_reg, const int check_nan, const int nthreads);
 void dealloc_adaQN(workspace_adaQN *adaQN);
 
 
@@ -326,29 +343,29 @@ typedef enum iter_status {did_not_update_x = 0, updated_x = 1, received_invalid_
 
 	Parameters
 	==========
-	step_size (in) : double
+	step_size (in) : real_t
 		size of the step to take in the computed direction
 	
-	x (in, out) : double[m]
+	x (in, out) : real_t[m]
 		variables to optimize
 	
-	f (adaQN w. 'max_incr')	(in) : double
+	f (adaQN w. 'max_incr')	(in) : real_t
 		objective function value, evaluated at the requested values
 		(ignored for oLBFGS, SQN, and adaQN wo. 'max_incr')
 	
-	grad (in) : double[m]
+	grad (in) : real_t[m]
 		pointer to array with gradient evalueted at '*req' (not at 'x')
 		(warning: will be modified in-place!!!)
 	
-	hess_vec (SQN wo. 'use_grad_diff') (in) : double[m]
+	hess_vec (SQN wo. 'use_grad_diff') (in) : real_t[m]
 		pointer to array with the product of the Hessian and the array in '*req'
 		ignored for oLBFGS, adaQN, and SQN w. 'use_grad_diff')
 	
-	*req (out) : double[m]
+	*req (out) : real_t[m]
 		values of the variables at which the next calculation is requested
 		(do NOT modify the values in this array!!!)
 	
-	*req_vec (out) (SQN wo. 'use_grad_diff') : double[m]
+	*req_vec (out) (SQN wo. 'use_grad_diff') : real_t[m]
 		vector with which the Hessian (evaluated at *req) should be multiplied
 		(do NOT modify the values in this array!!!)
 	
@@ -361,9 +378,9 @@ typedef enum iter_status {did_not_update_x = 0, updated_x = 1, received_invalid_
 	iter_info (out) : info_enum
 		slot where to put information when something goes wrong (e.g. curvature too small)
 */
-int run_oLBFGS(double step_size, double x[], double grad[], double **req, task_enum *task, workspace_oLBFGS *oLBFGS, info_enum *iter_info);
-int run_SQN(double step_size, double x[], double grad[], double hess_vec[], double **req, double **req_vec, task_enum *task, workspace_SQN *SQN, info_enum *iter_info);
-int run_adaQN(double step_size, double x[], double f, double grad[], double **req, task_enum *task, workspace_adaQN *adaQN, info_enum *iter_info);
+int run_oLBFGS(real_t step_size, real_t x[], real_t grad[], real_t **req, task_enum *task, workspace_oLBFGS *oLBFGS, info_enum *iter_info);
+int run_SQN(real_t step_size, real_t x[], real_t grad[], real_t hess_vec[], real_t **req, real_t **req_vec, task_enum *task, workspace_SQN *SQN, info_enum *iter_info);
+int run_adaQN(real_t step_size, real_t x[], real_t f, real_t grad[], real_t **req, task_enum *task, workspace_adaQN *adaQN, info_enum *iter_info);
 
 
 #ifdef __cplusplus
@@ -387,10 +404,10 @@ public:
 	task_enum task;
 	info_enum info;
 	iter_status status;
-	double *req;
+	real_t *req;
 
-	oLBFGS(const int n, const size_t mem_size = 10, const double hess_init = 0, const double y_reg = 0,
-		   const double min_curvature = 0, const int check_nan = 1, const int nthreads = 1)
+	oLBFGS(const int n, const size_t mem_size = 10, const real_t hess_init = 0, const real_t y_reg = 0,
+		   const real_t min_curvature = 0, const int check_nan = 1, const int nthreads = 1)
 	{
 		this->workspace = initialize_oLBFGS(n, mem_size, hess_init, y_reg,
 											min_curvature, check_nan, nthreads);
@@ -402,7 +419,7 @@ public:
 	~oLBFGS() { if (this->workspace != NULL) dealloc_oLBFGS(this->workspace); }
 
 
-	iter_status run(double step_size, double x[], double grad[])
+	iter_status run(real_t step_size, real_t x[], real_t grad[])
 	{
 		return (iter_status) run_oLBFGS(step_size, x, grad, &this->req, &this->task,
 										this->workspace, &this->info);
@@ -410,7 +427,7 @@ public:
 	task_enum get_task()      { return this->task;             }
 	info_enum get_iter_info() { return this->info;             }
 	size_t    get_n_iter()    { return this->workspace->niter; }
-	double*   get_req()       { return this->req;              }
+	real_t*   get_req()       { return this->req;              }
 };
 
 
@@ -421,11 +438,11 @@ public:
 	task_enum task;
 	info_enum info;
 	iter_status status;
-	double *req;
-	double *req_vec;
+	real_t *req;
+	real_t *req_vec;
 
 	SQN(const int n, const size_t mem_size = 10, const size_t bfgs_upd_freq = 10,
-		const double min_curvature = 1e-4, const int use_grad_diff = 0, const double y_reg = 0,
+		const real_t min_curvature = 1e-4, const int use_grad_diff = 0, const real_t y_reg = 0,
 		const int check_nan = 1, const int nthreads = 1)
 	{
 		this->workspace = initialize_SQN(n, mem_size, bfgs_upd_freq, min_curvature, use_grad_diff,
@@ -438,7 +455,7 @@ public:
 
 	~SQN() { if (this->workspace != NULL) dealloc_SQN(this->workspace); }
 
-	iter_status run(double step_size, double x[], double grad[], double hess_vec[])
+	iter_status run(real_t step_size, real_t x[], real_t grad[], real_t hess_vec[])
 	{
 		return (iter_status) run_SQN(step_size, x, grad, hess_vec, &this->req, &this->req_vec,
 									 &this->task, this->workspace, &this->info);
@@ -448,8 +465,8 @@ public:
 	task_enum get_task()      { return this->task;             }
 	info_enum get_iter_info() { return this->info;             }
 	size_t    get_n_iter()    { return this->workspace->niter; }
-	double*   get_req()       { return this->req;              }
-	double*   get_req_vec()   { return this->req_vec;          }
+	real_t*   get_req()       { return this->req;              }
+	real_t*   get_req_vec()   { return this->req_vec;          }
 
 };
 
@@ -460,12 +477,12 @@ public:
 	task_enum task;
 	info_enum info;
 	iter_status status;
-	double *req;
+	real_t *req;
 
 	adaQN(const int n, const size_t mem_size = 10, const size_t fisher_size = 100,
-		  const size_t bfgs_upd_freq = 10, const double max_incr = 1.01, const double min_curvature = 1e-4,
-		  const double scal_reg = 1e-4, const double rmsprop_weight = 0.9, const int use_grad_diff = 0,
-		  const double y_reg = 0, const int check_nan = 1, const int nthreads = 1)
+		  const size_t bfgs_upd_freq = 10, const real_t max_incr = 1.01, const real_t min_curvature = 1e-4,
+		  const real_t scal_reg = 1e-4, const real_t rmsprop_weight = 0.9, const int use_grad_diff = 0,
+		  const real_t y_reg = 0, const int check_nan = 1, const int nthreads = 1)
 	{
 		this->workspace = initialize_adaQN(n, mem_size, fisher_size, bfgs_upd_freq,
 										   max_incr, min_curvature, scal_reg, rmsprop_weight,
@@ -478,7 +495,7 @@ public:
 
 	~adaQN() { if (this->workspace != NULL) dealloc_adaQN(this->workspace); }
 
-	iter_status run(double step_size, double x[], double f, double grad[])
+	iter_status run(real_t step_size, real_t x[], real_t f, real_t grad[])
 	{
 		return (iter_status) run_adaQN(step_size, x, f, grad, &this->req,
 									   &this->task, this->workspace, &this->info);
@@ -487,7 +504,7 @@ public:
 	task_enum get_task()      { return this->task;             }
 	info_enum get_iter_info() { return this->info;             }
 	size_t    get_n_iter()    { return this->workspace->niter; }
-	double*   get_req()       { return this->req;              }
+	real_t*   get_req()       { return this->req;              }
 };
 
 

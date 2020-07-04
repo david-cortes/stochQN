@@ -1,2 +1,2 @@
 [build-system]
-requires = ["cython", "setuptools", "wheel", "numpy", "scipy", "scikit-learn", "findblas"]
+requires = ["cython", "setuptools", "wheel", "numpy", "findblas"]

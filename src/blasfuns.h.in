@@ -5,6 +5,24 @@
 #cmakedefine BLAS_UNDERSCORES
 #cmakedefine BLAS_NO_UNDERSCORES 
 
+#if !defined(real_t)
+	#if defined(USE_DOUBLE) || !defined(USE_FLOAT)
+		#define real_t double
+		#define cblas_tscal cblas_tscal
+		#define cblas_tdot cblas_tdot
+		#define cblas_taxpy cblas_taxpy
+		#define cblas_tnrm2 cblas_tnrm2
+		#define cblas_tgemv cblas_tgemv
+	#else
+		#define real_t float
+		#define cblas_tscal cblas_sscal
+		#define cblas_tdot cblas_sdot
+		#define cblas_taxpy cblas_saxpy
+		#define cblas_tnrm2 cblas_snrm2
+		#define cblas_tgemv cblas_sgemv
+	#endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,12 +36,12 @@ extern "C" {
 
 #if defined(HAS_MKL) || defined(HAS_OPENBLAS) || defined(HAS_ATLAS) || defined(HAS_CBLAS)
 
-	double cblas_ddot(int n, double *x, int incx, double *y, int incy);
-	void cblas_daxpy(int n, double a, double *x, int incx, double *y, int incy);
-	void cblas_dscal(int n, double alpha, double *x, int incx);
-	double cblas_dnrm2(int n, double *x, int incx);
-	void cblas_dgemv(const enum CBLAS_ORDER order,  const enum CBLAS_TRANSPOSE trans,  const int m, const int n,
-		const double alpha, const double  *a, const int lda,  const double  *x, const int incx,  const double beta,  double  *y, const int incy);
+	real_t cblas_tdot(int n, real_t *x, int incx, real_t *y, int incy);
+	void cblas_taxpy(int n, real_t a, real_t *x, int incx, real_t *y, int incy);
+	void cblas_tscal(int n, real_t alpha, real_t *x, int incx);
+	real_t cblas_tnrm2(int n, real_t *x, int incx);
+	void cblas_tgemv(const enum CBLAS_ORDER order,  const enum CBLAS_TRANSPOSE trans,  const int m, const int n,
+		const real_t alpha, const real_t  *a, const int lda,  const real_t  *x, const int incx,  const real_t beta,  real_t  *y, const int incy);
 
 	#ifdef HAS_MKL
 		int mkl_set_num_threads_local(int nthreads);
@@ -33,24 +51,46 @@ extern "C" {
 	#endif
 #else
 	#if defined(BLAS_UNDERSCORES)
-		#define ddot ddot_
-		#define daxpy daxpy_
-		#define dscal dscal_
-		#define dnrm2 dnrm2_
-		#define dgemv dgemv_
+		#if defined(USE_DOUBLE) || !defined(USE_FLOAT)
+			#define tdot ddot_
+			#define taxpy daxpy_
+			#define tscal dscal_
+			#define tnrm2 dnrm2_
+			#define tgemv dgemv_
+		#else
+			#define tdot sdot_
+			#define taxpy saxpy_
+			#define tscal sscal_
+			#define tnrm2 snrm2_
+			#define tgemv sgemv_
+		#endif
+	#else
+		#if defined(USE_DOUBLE) || !defined(USE_FLOAT)
+			#define tdot ddot
+			#define taxpy daxpy
+			#define tscal dscal
+			#define tnrm2 dnrm2
+			#define tgemv dgemv
+		#else
+			#define tdot sdot
+			#define taxpy saxpy
+			#define tscal sscal
+			#define tnrm2 snrm2
+			#define tgemv sgemv
+		#endif
 	#endif
 
-	double cblas_ddot(int n, double *x, int incx, double *y, int incy) {return ddot(&n, x, &incx, y, &incy);}
-	void cblas_daxpy(int n, double a, double *x, int incx, double *y, int incy) {daxpy(&n, &a, x, &incx, y, &incy);}
-	void cblas_dscal(int n, double alpha, double *x, int incx) {dscal(&n, &alpha, x, &incx);}
-	double cblas_dnrm2(int n, double *x, int incx) {return dnrm2(&n, x, &incx);}
+	real_t cblas_tdot(int n, real_t *x, int incx, real_t *y, int incy) {return tdot(&n, x, &incx, y, &incy);}
+	void cblas_taxpy(int n, real_t a, real_t *x, int incx, real_t *y, int incy) {taxpy(&n, &a, x, &incx, y, &incy);}
+	void cblas_tscal(int n, real_t alpha, real_t *x, int incx) {tscal(&n, &alpha, x, &incx);}
+	real_t cblas_tnrm2(int n, real_t *x, int incx) {return tnrm2(&n, x, &incx);}
 	
 	/*	A word of warning:
-		This 'cblas_dgemv' made from FORTRAN-dgemv will not work for all combinations of inputs and is not designed
+		This 'cblas_tgemv' made from FORTRAN-dgemv will not work for all combinations of inputs and is not designed
 		for general-purpose usage, only as a quick equivalence for the way in which it is used in this package.
 	*/
-	void cblas_dgemv(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE trans, int m, int n, double alpha, double *a, int lda,
-		double *x, int incx, double beta, double *y, int incy)
+	void cblas_tgemv(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE trans, int m, int n, real_t alpha, real_t *a, int lda,
+		real_t *x, int incx, real_t beta, real_t *y, int incy)
 	{
 		char T;
 		int M, N, LDA;
@@ -60,7 +100,7 @@ extern "C" {
 			M = m; N = n; LDA = lda;
 			if (trans == CblasNoTrans) { T = 'N'; } else { T = 'T'; }
 		}
-		dgemv(&T, &M, &N, &alpha, a, &LDA, x, &incx, &beta, y, &incy);
+		tgemv(&T, &M, &N, &alpha, a, &LDA, x, &incx, &beta, y, &incy);
 	}
 #endif
 

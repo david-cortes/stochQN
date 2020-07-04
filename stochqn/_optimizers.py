@@ -2,7 +2,7 @@ import numpy as np, pandas as pd, warnings
 from sklearn.model_selection import train_test_split
 from scipy.sparse import isspmatrix, isspmatrix_csr, vstack, csr_matrix
 import ctypes, multiprocessing
-from ._wrapper import _py_run_oLBFGS, py_run_SQN, py_run_adaQN
+from . import _wrapper_double, _wrapper_float
 
 ### Tasks will be outputed from python as strings rather than enums
 task_dct = {
@@ -113,7 +113,7 @@ class _StochQN:
 
 	def _add_common_attributes(self, x0, batches_per_epoch, step_size, grad_fun, obj_fun, pred_fun, decr_step_size,
 			callback_epoch, callback_iter, valset_frac, tol, nepochs, kwargs_cb, random_state, shuffle_data,
-			verbose, use_grad_diff):
+			verbose, use_grad_diff, use_float):
 
 		assert batches_per_epoch > 0
 		assert isinstance(batches_per_epoch, int)
@@ -161,7 +161,9 @@ class _StochQN:
 		if random_state is None:
 			random_state = 1
 
-		self.x = np.array(x0).astype('float64')
+		self.c_real_t = ctypes.c_float if use_float else ctypes.c_double
+
+		self.x = x0
 		self.n = self.x.shape[0]
 		self.step_size = step_size
 		self.obj_fun = obj_fun
@@ -176,11 +178,17 @@ class _StochQN:
 		self.kwargs_cb = kwargs_cb
 		self.valset_frac = valset_frac
 		self.random_state = random_state
+		self.use_float = bool(use_float)
 		self.verbose = bool(verbose)
 		self.shuffle_data = bool(shuffle_data)
 		self.use_grad_diff = bool(use_grad_diff)
 		self.epoch = 0
 		self.req = self.optimizer.run_optimizer(self.x, self.step_size)
+
+		if self.x.dtype != self.c_real_t:
+			raise ValueError("'x0' has wrong dtype.")
+		if len(self.x.shape) > 1:
+			raise ValueError("'x0' must be a 1-dimensional array.")
 
 		if self.optimizer_name != "oLBFGS":
 			### in case partial fit is used
@@ -486,6 +494,9 @@ class oLBFGS(_StochQN):
 	nthreads : int
 		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
 		all of them. Note however that not all the computations can be parallelized.
+	use_float : bool
+		Whether to use C 'float' type (np.float32). If 'False' (the default), will use 'double' type (np.float64).
+		The variables and gradient must be of this same dtype.
 
 	References
 	----------
@@ -497,14 +508,14 @@ class oLBFGS(_StochQN):
 	def __init__(self, x0, grad_fun, obj_fun=None, pred_fun=None, batches_per_epoch=25, step_size=1e-3, decr_step_size="auto",
 		shuffle_data=True, random_state=1, nepochs=25, valset_frac=None, tol=1e-1,
 		callback_epoch=None, callback_iter=None, kwargs_cb={}, verbose=True,
-		mem_size=10, hess_init=None, min_curvature=1e-4, y_reg=None, check_nan=True, nthreads=-1):
+		mem_size=10, hess_init=None, min_curvature=1e-4, y_reg=None, check_nan=True, nthreads=-1, use_float=False):
 
 		self.optimizer_name = "oLBFGS"
-		self.optimizer = oLBFGS_free(mem_size, hess_init, min_curvature, y_reg, check_nan, nthreads)
+		self.optimizer = oLBFGS_free(mem_size, hess_init, min_curvature, y_reg, check_nan, nthreads, use_float)
 		use_grad_diff = True
 		self._add_common_attributes(x0, batches_per_epoch, step_size, grad_fun, obj_fun, pred_fun, decr_step_size,
 			callback_epoch, callback_iter, valset_frac, tol, nepochs, kwargs_cb, random_state, shuffle_data,
-			verbose, use_grad_diff)
+			verbose, use_grad_diff, use_float)
 
 	@property
 	def niter(self):
@@ -600,6 +611,9 @@ class SQN(_StochQN):
 	nthreads : int
 		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
 		all of them. Note however that not all the computations can be parallelized.
+	use_float : bool
+		Whether to use C 'float' type (np.float32). If 'False' (the default), will use 'double' type (np.float64).
+		The variables, gradient, and hessian-vector must be of this same dtype.
 
 	References
 	----------
@@ -612,7 +626,7 @@ class SQN(_StochQN):
 	def __init__(self, x0, grad_fun, obj_fun=None, hess_vec_fun=None, pred_fun=None, batches_per_epoch=25, step_size=1e-3, decr_step_size="auto",
 		shuffle_data=True, random_state=1, nepochs=25, valset_frac=None, tol=1e-1,
 		callback_epoch=None, callback_iter=None, kwargs_cb={}, verbose=True,
-		mem_size=10, bfgs_upd_freq=20, min_curvature=1e-4, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1):
+		mem_size=10, bfgs_upd_freq=20, min_curvature=1e-4, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1, use_float=False):
 
 		if not use_grad_diff and hess_vec_fun is None:
 			raise ValueError("If not using 'use_grad_diff', must provide function that evaluates Hessian-vector product.")
@@ -625,10 +639,10 @@ class SQN(_StochQN):
 					raise ValueError("'hess_vec_fun' must be a function that takes as input the values of 'x' and a vector, returning the Hessian-vector product.")
 
 		self.optimizer_name = "SQN"
-		self.optimizer = SQN_free(mem_size, bfgs_upd_freq, min_curvature, y_reg, use_grad_diff, check_nan, nthreads)
+		self.optimizer = SQN_free(mem_size, bfgs_upd_freq, min_curvature, y_reg, use_grad_diff, check_nan, nthreads, use_float)
 		self._add_common_attributes(x0, batches_per_epoch, step_size, grad_fun, obj_fun, pred_fun, decr_step_size,
 			callback_epoch, callback_iter, valset_frac, tol, nepochs, kwargs_cb, random_state, shuffle_data,
-			verbose, use_grad_diff)
+			verbose, use_grad_diff, use_float)
 		self.hess_vec_fun = hess_vec_fun
 
 	@property
@@ -733,6 +747,9 @@ class adaQN(_StochQN):
 	nthreads : int
 		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
 		all of them. Note however that not all the computations can be parallelized.
+	use_float : bool
+		Whether to use C 'float' type (np.float32). If 'False' (the default), will use 'double' type (np.float64).
+		The variables and gradient must be of this same dtype.
 
 	References
 	----------
@@ -746,7 +763,7 @@ class adaQN(_StochQN):
 		shuffle_data=True, random_state=1, nepochs=25, valset_frac=None, tol=1e-1,
 		callback_epoch=None, callback_iter=None, kwargs_cb={}, verbose=True,
 		mem_size=10, fisher_size=100, bfgs_upd_freq=20, max_incr=1.01, min_curvature=1e-4, y_reg=None,
-		scal_reg=1e-4, rmsprop_weight=None, use_grad_diff=False, check_nan=True, nthreads=-1):
+		scal_reg=1e-4, rmsprop_weight=None, use_grad_diff=False, check_nan=True, nthreads=-1, use_float=False):
 
 		if max_incr is not None:
 			if obj_fun is None:
@@ -758,10 +775,10 @@ class adaQN(_StochQN):
 
 		self.optimizer_name = "adaQN"
 		self.optimizer = adaQN_free(mem_size, fisher_size, bfgs_upd_freq, max_incr, min_curvature, scal_reg,
-			rmsprop_weight, y_reg, use_grad_diff, check_nan, nthreads)
+			rmsprop_weight, y_reg, use_grad_diff, check_nan, nthreads, use_float)
 		self._add_common_attributes(x0, batches_per_epoch, step_size, grad_fun, obj_fun, pred_fun, decr_step_size,
 			callback_epoch, callback_iter, valset_frac, tol, nepochs, kwargs_cb, random_state, shuffle_data,
-			verbose, use_grad_diff)
+			verbose, use_grad_diff, use_float)
 
 	@property
 	def niter(self):
@@ -772,38 +789,41 @@ class adaQN(_StochQN):
 
 
 class _BFGS_mem_holder:
-	def __init__(self, mem_size, n, min_curvature, y_reg, upd_freq):
-		self.s_mem = np.empty((n * mem_size), dtype = ctypes.c_double)
-		self.y_mem = np.empty((n * mem_size), dtype = ctypes.c_double)
-		self.buffer_rho = np.empty(mem_size, dtype = ctypes.c_double)
-		self.buffer_alpha = np.empty(mem_size, dtype = ctypes.c_double)
+	def __init__(self, mem_size, n, min_curvature, y_reg, upd_freq, use_float):
+		c_real_t = ctypes.c_float if use_float else ctypes.c_double
+		self.s_mem = np.empty((n * mem_size), dtype = c_real_t)
+		self.y_mem = np.empty((n * mem_size), dtype = c_real_t)
+		self.buffer_rho = np.empty(mem_size, dtype = c_real_t)
+		self.buffer_alpha = np.empty(mem_size, dtype = c_real_t)
 		if min_curvature > 0:
-			self.s_bak = np.empty(n, dtype = ctypes.c_double)
-			self.y_bak = np.empty(n, dtype = ctypes.c_double)
+			self.s_bak = np.empty(n, dtype = c_real_t)
+			self.y_bak = np.empty(n, dtype = c_real_t)
 		else:
-			self.s_bak = np.empty(1, dtype = ctypes.c_double)
-			self.y_bak = np.empty(1, dtype = ctypes.c_double)
+			self.s_bak = np.empty(1, dtype = c_real_t)
+			self.y_bak = np.empty(1, dtype = c_real_t)
 		self.mem_size = ctypes.c_size_t(mem_size).value
 		self.mem_used = ctypes.c_size_t(0).value
 		self.mem_st_ix = ctypes.c_size_t(0).value
 		self.upd_freq = ctypes.c_size_t(upd_freq).value
-		self.y_reg = ctypes.c_double(y_reg).value
-		self.min_curvature = ctypes.c_double(min_curvature).value
+		self.y_reg = c_real_t(y_reg).value
+		self.min_curvature = c_real_t(min_curvature).value
 
 class _Fisher_mem_holder:
-	def __init__(self, mem_size, n):
-		self.F = np.empty((n * mem_size), dtype = ctypes.c_double)
-		self.buffer_y = np.empty(mem_size, dtype = ctypes.c_double)
+	def __init__(self, mem_size, n, use_float):
+		c_real_t = ctypes.c_float if use_float else ctypes.c_double
+		self.F = np.empty((n * mem_size), dtype = c_real_t)
+		self.buffer_y = np.empty(mem_size, dtype = c_real_t)
 		self.mem_size = ctypes.c_size_t(mem_size).value
 		self.mem_used = ctypes.c_size_t(0).value
 		self.mem_st_ix = ctypes.c_size_t(0).value
 
 
 class _oLBFGS_holder:
-	def __init__(self, n, mem_size, hess_init, y_reg, min_curvature, check_nan, nthreads):
-		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, 1)
-		self.grad_prev = np.empty(n, dtype = ctypes.c_double)
-		self.hess_init = ctypes.c_double(hess_init).value
+	def __init__(self, n, mem_size, hess_init, y_reg, min_curvature, check_nan, nthreads, use_float):
+		c_real_t = ctypes.c_float if use_float else ctypes.c_double
+		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, 1, use_float)
+		self.grad_prev = np.empty(n, dtype = c_real_t)
+		self.hess_init = c_real_t(hess_init).value
 		self.niter = ctypes.c_int(0).value
 		self.section = ctypes.c_int(0).value
 		self.nthreads = ctypes.c_int(nthreads).value
@@ -813,14 +833,15 @@ class _oLBFGS_holder:
 
 class _SQN_holder:
 	def __init__(self, n, mem_size, bfgs_upd_freq, min_curvature,
-				 use_grad_diff, y_reg, check_nan, nthreads):
-		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, bfgs_upd_freq)
+				 use_grad_diff, y_reg, check_nan, nthreads, use_float):
+		c_real_t = ctypes.c_float if use_float else ctypes.c_double
+		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, bfgs_upd_freq, use_float)
 		if use_grad_diff:
-			self.grad_prev = np.empty(n, dtype = ctypes.c_double)
+			self.grad_prev = np.empty(n, dtype = c_real_t)
 		else:
-			self.grad_prev = np.empty(1, dtype = ctypes.c_double)
-		self.x_sum = np.zeros(n, dtype = ctypes.c_double)
-		self.x_avg_prev = np.empty(n, dtype = ctypes.c_double)
+			self.grad_prev = np.empty(1, dtype = c_real_t)
+		self.x_sum = np.zeros(n, dtype = c_real_t)
+		self.x_avg_prev = np.empty(n, dtype = c_real_t)
 		self.use_grad_diff = ctypes.c_int(use_grad_diff).value
 		self.niter = ctypes.c_int(0).value
 		self.section = ctypes.c_int(0).value
@@ -831,25 +852,26 @@ class _SQN_holder:
 class _adaQN_holder:
 	def __init__(self, n, mem_size, fisher_size, bfgs_upd_freq,
 				 max_incr, min_curvature, scal_reg, rmsprop_weight,
-				 use_grad_diff, y_reg, check_nan, nthreads):
-		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, bfgs_upd_freq)
+				 use_grad_diff, y_reg, check_nan, nthreads, use_float):
+		c_real_t = ctypes.c_float if use_float else ctypes.c_double
+		self.BFGS_mem = _BFGS_mem_holder(mem_size, n, min_curvature, y_reg, bfgs_upd_freq, use_float)
 		if use_grad_diff:
-			self.Fisher_mem = _Fisher_mem_holder(1, 1)
-			self.grad_prev = np.empty(n, dtype = ctypes.c_double)
+			self.Fisher_mem = _Fisher_mem_holder(1, 1, use_float)
+			self.grad_prev = np.empty(n, dtype = c_real_t)
 		else:
-			self.Fisher_mem = _Fisher_mem_holder(fisher_size, n)
-			self.grad_prev = np.empty(1, dtype = ctypes.c_double)
+			self.Fisher_mem = _Fisher_mem_holder(fisher_size, n, use_float)
+			self.grad_prev = np.empty(1, dtype = c_real_t)
 
-		self.H0 = np.empty(n, dtype = ctypes.c_double)
-		self.x_sum = np.zeros(n, dtype = ctypes.c_double)
-		self.x_avg_prev = np.empty(n, dtype = ctypes.c_double)
-		self.grad_sum_sq = np.zeros(n, dtype = ctypes.c_double)
+		self.H0 = np.empty(n, dtype = c_real_t)
+		self.x_sum = np.zeros(n, dtype = c_real_t)
+		self.x_avg_prev = np.empty(n, dtype = c_real_t)
+		self.grad_sum_sq = np.zeros(n, dtype = c_real_t)
 
-		self.max_incr = ctypes.c_double(max_incr).value
-		self.scal_reg = ctypes.c_double(scal_reg).value
-		self.rmsprop_weight = ctypes.c_double(rmsprop_weight).value
+		self.max_incr = c_real_t(max_incr).value
+		self.scal_reg = c_real_t(scal_reg).value
+		self.rmsprop_weight = c_real_t(rmsprop_weight).value
 		self.use_grad_diff = ctypes.c_int(use_grad_diff).value
-		self.f_prev = ctypes.c_double(0).value
+		self.f_prev = c_real_t(0).value
 		self.niter = ctypes.c_int(0).value
 		self.section = ctypes.c_int(0).value
 		self.nthreads = ctypes.c_int(nthreads).value
@@ -858,7 +880,7 @@ class _adaQN_holder:
 
 #####################
 class _StochQN_free:
-	def _take_common_inputs(self, mem_size, min_curvature, y_reg, check_nan, nthreads):
+	def _take_common_inputs(self, mem_size, min_curvature, y_reg, check_nan, nthreads, use_float):
 		assert mem_size > 0
 		assert isinstance(mem_size, int)
 
@@ -882,6 +904,8 @@ class _StochQN_free:
 		self.y_reg = y_reg
 		self.check_nan = bool(check_nan)
 		self.nthreads = nthreads
+		self.use_float = bool(use_float)
+		self.c_real_t = ctypes.c_float if self.use_float else ctypes.c_double
 
 	def update_gradient(self, gradient):
 		"""
@@ -895,7 +919,11 @@ class _StochQN_free:
 			(task = "calc_grad_same_batch" - oLBFGS only), or a larger batch of data (task = "calc_grad_big_batch"), perhaps
 			including all the cases from the last such calculation (SQN and adaQN with 'use_grad_diff=True').
 		"""
-		self.gradient[:] = gradient.astype(ctypes.c_double).reshape(-1)
+		if gradient.dtype != self.c_real_t:
+			gradient = gradient.astype(self.c_real_t)
+		if len(gradient.shape) > 1:
+			gradient = gradient.reshape(-1)
+		self.gradient[:] = gradient
 
 
 class oLBFGS_free(_StochQN_free):
@@ -909,10 +937,10 @@ class oLBFGS_free(_StochQN_free):
 
 	Order in which requests are made:
 
-	========== loop ===========
-	* calc_grad
-	* calc_grad_same_batch		(might skip if using check_nan)
-	===========================
+		========== loop ===========
+		* calc_grad
+		* calc_grad_same_batch		(might skip if using check_nan)
+		===========================
 
 	Parameters
 	----------
@@ -931,9 +959,13 @@ class oLBFGS_free(_StochQN_free):
 	nthreads : int
 		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
 		all of them. Note however that not all the computations can be parallelized.
+	use_float : bool
+		Whether to use C 'float' type (np.float32). If 'False' (the default), will use 'double' type (np.float64).
+		The variables and gradient must be of this same dtype.
 	"""
-	def __init__(self, mem_size=10, hess_init=None, min_curvature=1e-4, y_reg=None, check_nan=True, nthreads=-1):
-		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
+	def __init__(self, mem_size=10, hess_init=None, min_curvature=1e-4, y_reg=None,
+					check_nan=True, nthreads=-1, use_float=False):
+		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads, use_float)
 		if hess_init is not None:
 			assert hess_init > 0
 		else:
@@ -943,8 +975,9 @@ class oLBFGS_free(_StochQN_free):
 
 
 	def _initialize(self, n):
-		self._oLBFGS = _oLBFGS_holder(n, self.mem_size, self.hess_init, self.y_reg, self.min_curvature, self.check_nan, self.nthreads)
-		self.gradient = np.empty(n, dtype=ctypes.c_double)
+		self._oLBFGS = _oLBFGS_holder(n, self.mem_size, self.hess_init, self.y_reg, self.min_curvature,
+			self.check_nan, self.nthreads, self.use_float)
+		self.gradient = np.empty(n, dtype = self.c_real_t)
 		self.initialized = True
 
 	def run_optimizer(self, x, step_size):
@@ -983,13 +1016,16 @@ class oLBFGS_free(_StochQN_free):
 				"func_increased", "curvature_too_small".
 		"""
 		assert isinstance(x, np.ndarray)
-		assert x.dtype == np.float64
+		if x.dtype != self.c_real_t:
+			raise ValueError("x' has wrong dtype.")
 		if not self.initialized:
 			self._initialize(x.shape[0])
 
+		c_funs = _wrapper_float if self.use_float else _wrapper_double
+
 		x_changed, niter, section, \
 		mem_used, mem_st_ix, \
-		task, iter_info, req_arr = _py_run_oLBFGS(self._oLBFGS, x, self.gradient, step_size)
+		task, iter_info, req_arr = c_funs.py_run_oLBFGS(self._oLBFGS, x, self.gradient, step_size)
 
 		self._oLBFGS.niter = ctypes.c_size_t(niter).value
 		self._oLBFGS.section = ctypes.c_int(section).value
@@ -1020,14 +1056,14 @@ class SQN_free(_StochQN_free):
 
 	Order in which requests are made:
 
-	========== loop ===========
-	* calc_grad
-		... (repeat calc_grad)
-	if 'use_grad_diff':
-		* calc_grad_big_batch
-	else:
-		* calc_hess_vec
-	===========================
+		========== loop ===========
+		* calc_grad
+			... (repeat calc_grad)
+		if 'use_grad_diff':
+			* calc_grad_big_batch
+		else:
+			* calc_hess_vec
+		===========================
 
 	Parameters
 	----------
@@ -1048,9 +1084,13 @@ class SQN_free(_StochQN_free):
 	nthreads : int
 		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
 		all of them. Note however that not all the computations can be parallelized.
+	use_float : bool
+		Whether to use C 'float' type (np.float32). If 'False' (the default), will use 'double' type (np.float64).
+		The variables and gradient must be of this same dtype.
 	"""
-	def __init__(self, mem_size=10, bfgs_upd_freq=20, min_curvature=1e-4, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1):
-		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
+	def __init__(self, mem_size=10, bfgs_upd_freq=20, min_curvature=1e-4, y_reg=None, use_grad_diff=False,
+					check_nan=True, nthreads=-1, use_float=False):
+		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads, use_float)
 		assert bfgs_upd_freq > 0
 		self.bfgs_upd_freq = int(bfgs_upd_freq)
 		self.use_grad_diff = bool(use_grad_diff)
@@ -1058,12 +1098,12 @@ class SQN_free(_StochQN_free):
 
 	def _initialize(self, n):
 		self._SQN = _SQN_holder(n, self.mem_size, self.bfgs_upd_freq, self.min_curvature,
-								self.use_grad_diff, self.y_reg, self.check_nan, self.nthreads)
-		self.gradient = np.empty(n, dtype = ctypes.c_double)
+								self.use_grad_diff, self.y_reg, self.check_nan, self.nthreads, self.use_float)
+		self.gradient = np.empty(n, dtype = self.c_real_t)
 		if not self.use_grad_diff:
-			self.hess_vec = np.empty(n, dtype = ctypes.c_double)
+			self.hess_vec = np.empty(n, dtype = self.c_real_t)
 		else:
-			self.hess_vec = np.empty(1, dtype = ctypes.c_double)
+			self.hess_vec = np.empty(1, dtype = self.c_real_t)
 		self.initialized = True
 
 	def update_hess_vec(self, hess_vec):
@@ -1076,7 +1116,11 @@ class SQN_free(_StochQN_free):
 			Product of the Hessian evaluated at "requested_on"[0] with the vector "requested_on"[1],
 			calculated a larger batch of data than the gradient, perhaps including all the cases from the last such calculation.
 		"""
-		self.hess_vec[:] = hess_vec.astype(ctypes.c_double).reshape(-1)
+		if hess_vec.dtype != self.c_real_t:
+			hess_vec = hess_vec.astype(self.c_real_t)
+		if len(hess_vec.shape) > 1:
+			hess_vec = hess_vec.reshape(-1)
+		self.hess_vec[:] = hess_vec
 
 	def run_optimizer(self, x, step_size):
 		"""
@@ -1113,13 +1157,16 @@ class SQN_free(_StochQN_free):
 				"func_increased", "curvature_too_small".
 		"""
 		assert isinstance(x, np.ndarray)
-		assert x.dtype == np.float64
+		if x.dtype != self.c_real_t:
+			raise ValueError("x' has wrong dtype.")
 		if not self.initialized:
 			self._initialize(x.shape[0])
 
+		c_funs = _wrapper_float if self.use_float else _wrapper_double
+
 		x_changed, niter, section, \
 		mem_used, mem_st_ix, \
-		task, iter_info, req, req_vec = py_run_SQN(self._SQN, x, step_size, self.gradient, self.hess_vec)
+		task, iter_info, req, req_vec = c_funs.py_run_SQN(self._SQN, x, step_size, self.gradient, self.hess_vec)
 
 		self._SQN.niter = ctypes.c_size_t(niter).value
 		self._SQN.section = ctypes.c_int(section).value
@@ -1153,14 +1200,14 @@ class adaQN_free(_StochQN_free):
 
 	Order in which requests are made:
 
-	========== loop ===========
-	* calc_grad
-		... (repeat calc_grad)
-	if max_incr > 0:
-		* calc_fun_val_batch
-	if 'use_grad_diff':
-		* calc_grad_big_batch	(skipped if below max_incr)
-	===========================
+		========== loop ===========
+		* calc_grad
+			... (repeat calc_grad)
+		if max_incr > 0:
+			* calc_fun_val_batch
+		if 'use_grad_diff':
+			* calc_grad_big_batch	(skipped if below max_incr)
+		===========================
 
 	Parameters
 	----------
@@ -1195,11 +1242,14 @@ class adaQN_free(_StochQN_free):
 	nthreads : int
 		Number of parallel threads to use. If set to -1, will determine the number of available threads and use
 		all of them. Note however that not all the computations can be parallelized.
+	use_float : bool
+		Whether to use C 'float' type (np.float32). If 'False' (the default), will use 'double' type (np.float64).
+		The variables and gradient must be of this same dtype.
 	"""
 	def __init__(self, mem_size=10, fisher_size=100, bfgs_upd_freq=20, max_incr=1.01, min_curvature=1e-4, scal_reg=1e-4,
-		rmsprop_weight=None, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1):
+		rmsprop_weight=None, y_reg=None, use_grad_diff=False, check_nan=True, nthreads=-1, use_float=False):
 
-		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads)
+		self._take_common_inputs(mem_size, min_curvature, y_reg, check_nan, nthreads, use_float)
 		assert bfgs_upd_freq > 0
 		bfgs_upd_freq = int(bfgs_upd_freq)
 		if not use_grad_diff:
@@ -1229,9 +1279,9 @@ class adaQN_free(_StochQN_free):
 	def _initialize(self, n):
 		self._adaQN = _adaQN_holder(n, self.mem_size, self.fisher_size, self.bfgs_upd_freq, self.max_incr,
 									self.min_curvature, self.scal_reg, self.rmsprop_weight,
-									self.use_grad_diff, self.y_reg, self.check_nan, self.nthreads)
-		self.gradient = np.empty(n, dtype = ctypes.c_double)
-		self.f = ctypes.c_double(0.0).value
+									self.use_grad_diff, self.y_reg, self.check_nan, self.nthreads, self.use_float)
+		self.gradient = np.empty(n, dtype = self.c_real_t)
+		self.f = self.c_real_t(0.0).value
 		self.initialized = True
 
 	def update_function(self, fun):
@@ -1244,7 +1294,7 @@ class adaQN_free(_StochQN_free):
 			Function evaluated at "requested_on" under a validation set or a larger batch, perhaps
 			including all the cases from the last such calculation.
 		"""
-		self.f = ctypes.c_double(float(fun)).value
+		self.f = self.c_real_t(float(fun)).value
 
 	def run_optimizer(self, x, step_size):
 		"""
@@ -1282,18 +1332,21 @@ class adaQN_free(_StochQN_free):
 				"func_increased", "curvature_too_small".
 		"""
 		assert isinstance(x, np.ndarray)
-		assert x.dtype == np.float64
+		if x.dtype != self.c_real_t:
+			raise ValueError("x' has wrong dtype.")
 		if not self.initialized:
 			self._initialize(x.shape[0])
+
+		c_funs = _wrapper_float if self.use_float else _wrapper_double
 
 		x_changed, niter, section, \
 		mem_used, mem_st_ix, \
 		f_mem_used, f_mem_st_ix, f_prev, \
-		task, iter_info, req = py_run_adaQN(self._adaQN, x, self.gradient, step_size, self.f)
+		task, iter_info, req = c_funs.py_run_adaQN(self._adaQN, x, self.gradient, step_size, self.f)
 
 		self._adaQN.niter = ctypes.c_size_t(niter).value
 		self._adaQN.section = ctypes.c_int(section).value
-		self._adaQN.f_prev = ctypes.c_double(f_prev).value
+		self._adaQN.f_prev = self.c_real_t(f_prev).value
 		self._adaQN.BFGS_mem.mem_used = ctypes.c_size_t(mem_used).value
 		self._adaQN.BFGS_mem.mem_st_ix = ctypes.c_size_t(mem_st_ix).value
 		self._adaQN.Fisher_mem.mem_used = ctypes.c_size_t(f_mem_used).value

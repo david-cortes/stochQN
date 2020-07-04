@@ -1,3 +1,4 @@
+#define USE_DOUBLE 
 #include "stochqn.h"
 #include <R.h>
 #include <Rinternals.h>
