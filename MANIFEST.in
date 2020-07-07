@@ -2,3 +2,4 @@ include include/stochqn.h
 include src/stochqn.c
 include pyproject.toml
 global-include *.pyx
+global-include *.pxi
