@@ -12,6 +12,7 @@ set(CUSTOM_BLAS false)
 # If you want to compile for 'float' type, change this to USE_FLOAT
 add_compile_definitions(USE_DOUBLE)
 
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/stochqn.c)
 add_library(stochqn SHARED ${SRC_FILES})
 
